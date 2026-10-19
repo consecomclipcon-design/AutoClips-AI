@@ -21,4 +21,4 @@ COPY server.py cloud_server.py ./
 RUN pip install --no-cache-dir ".[youtube-import]" && node --version && python -c "import yt_dlp; print(yt_dlp.version.__version__)"
 RUN mkdir -p /data && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin autoclips && chown -R autoclips:autoclips /data
 USER autoclips
-CMD ["sh", "-c", "exec uvicorn cloud_server:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+CMD ["sh", "-c", "exec uvicorn cloud_server:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-access-log"]

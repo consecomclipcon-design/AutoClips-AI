@@ -1,0 +1,75 @@
+name: AutoClips Cariani - real source import and render validation
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/test-carani-import.yml'
+permissions:
+  contents: read
+jobs:
+  import-and-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout AutoClips
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ffmpeg and yt-dlp
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install -U 'yt-dlp[default]' pytest
+          yt-dlp --version
+          ffmpeg -version | head -2
+      - name: AutoClips download test from authorized Cariani video
+        env:
+          AUTOCLIPS_HOME: ${{ runner.temp }}/autoclips
+          ALLOW_YOUTUBE_IMPORT: 'true'
+        run: |
+          mkdir -p "$AUTOCLIPS_HOME"
+          python - <<'PY'
+          import json
+          from autoclips.media import import_youtube_approved, probe
+          url="https://www.youtube.com/watch?v=q6OYTqiXmAw"
+          file=import_youtube_approved(url, "cariani_autorizado", True)
+          print("DOWNLOAD_COMPLETED:",file,flush=True)
+          info=probe(file)
+          print("VIDEO_PROBE:",json.dumps(info),flush=True)
+          if not (info["duration"]>70 and info["width"]>=240):
+              raise RuntimeError("Invalid downloaded video content")
+          PY
+      - name: Render real source in AutoClips
+        env:
+          AUTOCLIPS_HOME: ${{ runner.temp }}/autoclips
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from autoclips.split_renderer import render_split
+          root=Path(__import__('os').environ["AUTOCLIPS_HOME"])
+          video=next((root/'projects/cariani_autorizado').glob('source.*'))
+          image=root/'cariani_contexto.jpg'
+          import urllib.request
+          try:
+              urllib.request.urlretrieve("https://i.ytimg.com/vi/6byBqwVBgek/hqdefault.jpg",image)
+          except Exception as exc:
+              print("IMAGE_FALLBACK:",str(exc))
+              image=None
+          out=Path("autoclips-carani-corte.mp4")
+          result=render_split(source=video,words=[],start=8,end=78,output=out,
+            image=image,hook_white="APOSTARAM QUE ELE",hook_red="NÃO IA CASAR",size=(540,960))
+          print("RENDER_RESULT:",json.dumps(result))
+          PY
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_type,width,height -of json autoclips-carani-corte.mp4
+          test -s autoclips-carani-corte.mp4
+      - name: Upload finished AutoClips MP4
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoclips-carani-real-clip
+          path: autoclips-carani-corte.mp4
+          retention-days: 7
+          if-no-files-found: error

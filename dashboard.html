@@ -68,7 +68,12 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
     <textarea id="links" class="input" rows="6" placeholder="https://youtu.be/...&#10;https://www.youtube.com/watch?v=..."></textarea>
     <label class="small" style="display:flex;align-items:flex-start;gap:7px;margin:10px 0"><input type="checkbox" id="rights"/> Tenho autorização para usar e republicar estes vídeos.</label>
     <button class="btn primary" id="addLinks">＋ Enviar para edição</button>
-    <div class="notice">O download direto do YouTube pode sofrer bloqueio anti-bot. Links de MP4 autorizados também são aceitos. Falhas serão mostradas abaixo, sem fingir que foram processadas.</div>
+    <div class="notice">O download direto do YouTube pode sofrer bloqueio anti-bot. Links MP4 hospedados também são aceitos. Se a importação for bloqueada, você pode enviar o arquivo original já comprimido abaixo, para o AutoClips gerar os cortes.</div>
+    <div class="line"></div>
+    <h3 class="panel-title" style="font-size:16px">Enviar vídeo original (MP4)</h3>
+    <p class="small">Para vídeos longos que o YouTube bloquear: envie o vídeo original ou a versão comprimida, até 180 MB. O AutoClips transcreve e cria cortes para aprovação; não publica automaticamente.</p>
+    <input id="sourceFile" type="file" accept="video/mp4,.mp4" class="input" aria-label="Selecionar vídeo original"/>
+    <button class="btn" id="uploadSource">⬆ Enviar para criar cortes</button>
     <div class="line"></div>
     <h3 class="panel-title" style="font-size:16px">Short pronto (MP4)</h3>
     <p class="small">Se já tiver o Short editado, envie-o diretamente. Ele aparecerá no feed para você aprovar e publicar.</p>
@@ -139,6 +144,24 @@ $('logoutBtn').onclick=async()=>{await req('/auth/logout',{method:'POST',body:JS
 $('prev').onclick=()=>changeClip(-1);$('next').onclick=()=>changeClip(1);$('mobileNext').onclick=()=>changeClip(1);
 $('approve').onclick=()=>vote('like');$('disapprove').onclick=()=>vote('dislike');$('requestRemake').onclick=()=>vote('dislike');$('refresh').onclick=refresh;
 $('navSources').onclick=()=>$('links').focus();$('toggleSources').onclick=()=>$('links').scrollIntoView({behavior:'smooth'});
+$('uploadSource').onclick=async()=>{
+ const file=$('sourceFile').files[0];
+ if(!file){showToast('Selecione o vídeo original em MP4.');return}
+ if(file.size>180*1024*1024||file.size<1024){
+   showToast('O MP4 original deve ter até 180 MB. Comprima o arquivo antes de enviar.');return
+ }
+ $('uploadSource').disabled=true;$('uploadSource').textContent='Transferindo original...';
+ try{
+   const response=await fetch('/api/console/upload-source',{method:'POST',
+     credentials:'same-origin',headers:{'Content-Type':'video/mp4','X-Autoclips-Action':'1'},body:file});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)throw Error(data.error||('HTTP '+response.status));
+   $('sourceFile').value='';
+   showToast('Vídeo recebido! O AutoClips começará a transcrever e criar cortes.');
+   await refresh();
+ }catch(e){showToast('Importação falhou: '+e.message)}
+ finally{$('uploadSource').disabled=false;$('uploadSource').textContent='⬆ Enviar para criar cortes'}
+};
 $('uploadReady').onclick=async()=>{
  const file=$('readyFile').files[0];if(!file){showToast('Escolha um MP4 antes.');return}
  if(file.size>180*1024*1024||file.size<1000){showToast('MP4 precisa ter de 1KB a 180MB.');return}

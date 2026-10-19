@@ -56,23 +56,27 @@ def _db_init():
           created_at TEXT NOT NULL, remake_clip_id TEXT
         );
         """)
-        # One-time automatic retry of previously bot-blocked YouTube links after
-        # deploying the new private POT provider. No user resubmission needed.
+        # Retry a bot-blocked link once for each materially new download
+        # strategy. Normal UI reads and process restarts never burn retries.
+        retry_revision = "dualstack-pot-v1"
         columns = {col["name"] for col in c.execute("PRAGMA table_info(dashboard_sources)")}
         if "auto_retry_count" not in columns:
             c.execute("ALTER TABLE dashboard_sources ADD COLUMN auto_retry_count INTEGER NOT NULL DEFAULT 0")
+        if "retry_revision" not in columns:
+            c.execute("ALTER TABLE dashboard_sources ADD COLUMN retry_revision TEXT NOT NULL DEFAULT ''")
         retried = c.execute("""UPDATE dashboard_sources
-                     SET status='queued', error=NULL, project_id=NULL, job_id=NULL,
-                         auto_retry_count=auto_retry_count+1, updated_at=?
-                     WHERE source_kind='youtube' AND status='failed'
-                       AND auto_retry_count<3
-                       AND (lower(coalesce(error,'')) LIKE '%not a bot%'
+                        SET status='queued',error=NULL,project_id=NULL,job_id=NULL,
+                            auto_retry_count=auto_retry_count+1,
+                            retry_revision=?,updated_at=?
+                        WHERE source_kind='youtube' AND status='failed'
+                          AND retry_revision<>?
+                          AND (lower(coalesce(error,'')) LIKE '%not a bot%'
                             OR lower(coalesce(error,'')) LIKE '%sign in to confirm%'
                             OR lower(coalesce(error,'')) LIKE '%youtube bloqueou%'
                             OR lower(coalesce(error,'')) LIKE '%download do youtube bloqueado%')
-                  """, (db.now(),))
+                       """,(retry_revision,db.now(),retry_revision))
         if retried.rowcount:
-            print("AUTOCLIPS_AUTO_RETRY_ENQUEUED", retried.rowcount, flush=True)
+            print("AUTOCLIPS_RETRY_NEW_STRATEGY",retry_revision,retried.rowcount,flush=True)
 
 
 def _secret() -> bytes:

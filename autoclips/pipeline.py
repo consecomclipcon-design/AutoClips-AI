@@ -238,7 +238,7 @@ def _render_split(clip_id: str, image_file: str | None, focal_x: float,
         target = home() / "exports" / f"{clip_id}.mp4"
         outcome = render_split(source=_media_for_render(project),image=image_file,
                                words=transcript["words"],start=clip["start"],end=clip["end"],
-                               output=target,focal_x=focal_x,size=(1080,1920),
+                               output=target,focal_x=focal_x,size=(540,960),
                                hook_white=hook_white or None,hook_red=hook_red or None)
         db.update("clips",clip_id,path=str(target),status="ready")
         return {"clip_id":clip_id,**outcome}

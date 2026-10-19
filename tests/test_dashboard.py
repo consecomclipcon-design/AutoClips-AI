@@ -99,6 +99,27 @@ def test_dashboard_login_cookie_csrf_and_feed(working):
         assert r.status_code==202 and r.json()["items"][0]["status"]=="queued"
 
 
+def test_login_ui_api_route_contract_and_existing_tab_compatibility(working):
+    # Guards against the login-success-then-404 regression observed in production.
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    page = (root / "dashboard.html").read_text(encoding="utf-8")
+    server = (root / "cloud_server.py").read_text(encoding="utf-8")
+    assert "req('/auth/session')" in page
+    assert 'Route("/auth/session", dashboard.session' in server
+    assert 'Route("/api/console/session", dashboard.session' in server
+    app = Starlette(routes=[
+        Route("/auth/login",dashboard.login,methods=["POST"]),
+        Route("/auth/session",dashboard.session,methods=["GET"]),
+        Route("/api/console/session",dashboard.session,methods=["GET"]),
+    ])
+    with TestClient(app,base_url="https://autoclips-worker-production.up.railway.app") as c:
+        assert c.get("/auth/session").json() == {"loggedIn":False}
+        assert c.post("/auth/login",json={"password":"test-owner-password-is-secure"}).status_code==200
+        assert c.get("/auth/session").json() == {"loggedIn":True}
+        assert c.get("/api/console/session").json() == {"loggedIn":True}
+
+
 def test_source_authorization_required(working):
     app=Starlette(routes=[Route("/auth/login",dashboard.login,methods=["POST"]),
                            Route("/api/console/links",dashboard.add_links,methods=["POST"])])

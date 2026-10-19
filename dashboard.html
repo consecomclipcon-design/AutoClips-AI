@@ -82,6 +82,7 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
     <div class="line"></div>
     <h3 class="panel-title" style="font-size:16px">Revisão deste corte</h3>
     <div class="small" id="reviewStatus">Selecione um vídeo no feed.</div>
+    <label class="small" style="display:flex;align-items:flex-start;gap:7px;margin:12px 0"><input type="checkbox" id="rightsPublish"/> Confirmo que tenho direitos ou autorização válida para publicar este corte no YouTube. A aprovação editorial, sozinha, não comprova esses direitos.</label>
     <div class="feedback">
       <label class="small">O que precisa mudar?</label>
       <textarea id="comment" class="input" placeholder="Ex.: mais contexto no começo, legenda maior, melhor imagem, mudar o gancho..."></textarea>
@@ -109,6 +110,7 @@ function renderClip(){const v=$('player'),item=feed[current];if(!item){v.pause()
  $('videoMeta').textContent=Math.round(item.end-item.start)+'s · '+(item.publication_status?publishedState(item.publication_status):item.decision==='dislike'?'Reprovado · em revisão':'Aguardando aprovação');
  $('reviewStatus').textContent=item.publication_status?publishedState(item.publication_status):(item.decision==='dislike'?'Reprovado':'Pendente');
  $('comment').value=item.feedback||'';
+ $('rightsPublish').checked=false;
  $('approve').disabled=Boolean(item.publication_status);
  $('approve').title=item.publication_status?'Esse corte já está na fila do YouTube':'Curtir para publicar publicamente';
 }
@@ -132,7 +134,8 @@ async function refresh(){try{
 async function vote(decision){const item=feed[current];if(!item){showToast('Adicione um vídeo primeiro.');return}
  if(decision==='like'&&item.publication_status){showToast('Este vídeo já está na fila/publicado.');return}
  try{
- const body={clip_id:item.id,decision,comment:$('comment').value.trim()};
+ if(decision==='like'&&!$('rightsPublish').checked){showToast('Confirme os direitos de uso antes de publicar.');return}
+ const body={clip_id:item.id,decision,comment:$('comment').value.trim(),rights_confirmed:decision==='like'&&$('rightsPublish').checked};
  const res=await req('/api/console/review',{method:'POST',body:JSON.stringify(body)});
  if(decision==='like')showToast('♥ Aprovado! Publicação PÚBLICA colocada na fila.');
  else showToast(res.action==='remake_queued'?'👎 Nova versão em produção.':'👎 Feedback salvo.');

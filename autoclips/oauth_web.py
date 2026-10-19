@@ -63,6 +63,37 @@ def _db() -> sqlite3.Connection:
     return conn
 
 
+def safe_diagnostics() -> dict:
+    """Minimal non-secret diagnostics for operators and deploy logs."""
+    required = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI",
+                "YOUTUBE_EXPECTED_CHANNEL_ID", "MCP_GATEWAY_TOKEN")
+    missing = [name for name in required if not os.getenv(name)]
+    if missing:
+        return {"ready": False, "connected": False, "reason": "missing_environment",
+                "missing_variable_names": missing}
+    try:
+        _config()
+    except RuntimeError:
+        return {"ready": False, "connected": False, "reason": "invalid_environment"}
+    if has_connection():
+        try:
+            data = read_connection()
+            return {"ready": True, "connected": True, "reason": "connected",
+                    "channel_id": data["channel_id"]}
+        except Exception:
+            return {"ready": False, "connected": False, "reason": "stored_token_unreadable"}
+    try:
+        conn = _db()
+        try:
+            conn.execute("SELECT 1 FROM youtube_oauth_states LIMIT 1").fetchone()
+        finally:
+            conn.close()
+    except Exception as exc:
+        return {"ready": False, "connected": False, "reason": "storage_or_database_error",
+                "error_type": type(exc).__name__}
+    return {"ready": True, "connected": False, "reason": "authorization_required"}
+
+
 def start_authorization() -> str:
     conf = _config()
     if has_connection():

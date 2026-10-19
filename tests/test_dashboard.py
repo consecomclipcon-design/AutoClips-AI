@@ -1,4 +1,4 @@
-"""Regression tests for owner dashboard and 20/day public publishing queue."""
+"""Regression tests for owner dashboard and 20/day private test publication queue."""
 import os
 import asyncio
 from pathlib import Path
@@ -58,7 +58,7 @@ def test_youtube_bot_failure_retry_once_for_new_strategy(working):
     assert row["auto_retry_count"]==1
 
 
-def test_public_approval_requires_explicit_consent(working):
+def test_private_approval_requires_explicit_consent(working):
     clip=add_clip(working,1)
     with pytest.raises(PermissionError):
         publish_queue.enqueue_publication(clip,title="Short",description="Test")
@@ -72,7 +72,7 @@ def test_no_more_than_20_uploads_on_same_day(working,monkeypatch):
     monkeypatch.setattr(youtube,"channel",lambda:{"id":"UC"+"x"*22,"name":"ClipCon"})
     uploaded=[]
     def fake_upload(file_path,title,description,privacy,made_for_kids,channel_id,publish_at):
-        assert privacy=="public" and channel_id=="UC"+"x"*22
+        assert privacy=="private" and channel_id=="UC"+"x"*22
         uploaded.append(file_path)
         return "https://www.youtube.com/watch?v=ABCDEF12345"
     monkeypatch.setattr(youtube,"upload",fake_upload)

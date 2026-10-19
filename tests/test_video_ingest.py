@@ -62,7 +62,7 @@ def test_downloader_rejects_overlong_video_before_download(tmp_path, monkeypatch
         def download(self, _):
             pytest.fail('must reject before downloading')
     monkeypatch.setitem(sys.modules,'yt_dlp',types.SimpleNamespace(YoutubeDL=FakeDownloader))
-    with pytest.raises(ValueError,match='Duração'):
+    with pytest.raises(ValueError,match='maior que 4 horas'):
         import_youtube_approved('https://youtu.be/q6OYTqiXmAw','p1',True)
 
 

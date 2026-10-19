@@ -290,3 +290,33 @@ def test_agent_chat_media_ingests_once_and_never_publishes_without_rights(workin
     assert row["status"] == "queued" and row["privacy"] == "private"
     dashboard._queue_one_approved_chat_source()
     assert publish_queue.get_publication(clip)["status"] == "queued"
+
+def test_completed_english_import_is_rejected_before_rendering(working, monkeypatch):
+    source_id="src_english_quality_gate"
+    project_id="prj_english_quality_gate"
+    transcript=working/"projects"/project_id/"transcript.json"
+    transcript.parent.mkdir(parents=True,exist_ok=True)
+    import json
+    transcript.write_text(json.dumps({
+        "language":"en",
+        "segments":[{"start":float(i*4),"end":float((i+1)*4),
+                     "text":"This is a long English sentence about a surprising story."} for i in range(15)],
+        "words":[]}))
+    with db.conn() as c:
+        c.execute("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?)",
+                 (project_id,"file","source.mp4","English original",
+                  str(transcript.parent/"source.mp4"),str(transcript),60,"ready",None,db.now()))
+        c.execute("""INSERT INTO dashboard_sources
+                     (id,link,source_kind,status,project_id,job_id,created_at,updated_at)
+                     VALUES (?,?,'file','importing',?,?,?,?)""",
+                  (source_id,"source.mp4",project_id,"job_english",db.now(),db.now()))
+    monkeypatch.setattr(pipeline,"job_status",lambda *_: {"status":"completed"})
+    monkeypatch.setattr(dashboard,"_queue_one_nasa_private_validation",lambda:None)
+    monkeypatch.setattr(dashboard,"_queue_one_approved_chat_source",lambda:None)
+    monkeypatch.setattr(dashboard,"publish_next",lambda:None)
+    dashboard._tick()
+    with db.conn() as c:
+        state=c.execute("SELECT status,error FROM dashboard_sources WHERE id=?",(source_id,)).fetchone()
+        assert state["status"]=="failed"
+        assert "português" in state["error"]
+        assert c.execute("SELECT count(*) FROM clips WHERE project_id=?",(project_id,)).fetchone()[0]==0

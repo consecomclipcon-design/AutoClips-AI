@@ -111,10 +111,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if b <= a: continue
         val = _ass_safe(str(w.get('text', '')))
         if not val: continue
-        lines.append(f'Dialogue: 1,{_ass_time(a)},{_ass_time(b)},Spoken,,0,0,0,,{{\\an5\\pos(540,810)}}{val}\n')
+        lines.append(f'Dialogue: 1,{_ass_time(a)},{_ass_time(b)},Spoken,,0,0,0,,{{\\an5\\pos(540,960)}}{val}\n')
         count += 1
-    lines.append(f'Dialogue: 2,0:00:00.00,{_ass_time(duration)},HookWhite,,0,0,0,,{{\\an5\\pos(540,1040)}}{white}\n')
-    lines.append(f'Dialogue: 2,0:00:00.00,{_ass_time(duration)},HookRed,,0,0,0,,{{\\an5\\pos(540,1130)}}{red}\n')
+    lines.append(f'Dialogue: 2,0:00:00.00,{_ass_time(duration)},HookWhite,,0,0,0,,{{\\an5\\pos(540,125)}}{white}\n')
+    lines.append(f'Dialogue: 2,0:00:00.00,{_ass_time(duration)},HookRed,,0,0,0,,{{\\an5\\pos(540,215)}}{red}\n')
     ass.write_text(''.join(lines), encoding='utf-8')
     return count
 

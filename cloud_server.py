@@ -10,10 +10,11 @@ from contextlib import asynccontextmanager
 import os
 
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from starlette.routing import Mount, Route
 
 from autoclips.cloud_auth import BearerGate
+from autoclips import oauth_web
 from autoclips.upload_http import upload_media
 from autoclips.api_http import create_project, status_job
 from server import mcp
@@ -21,6 +22,37 @@ from server import mcp
 
 async def health(request):
     return JSONResponse({"status": "ok", "service": "autoclips-ai", "mode": "private-mcp"})
+
+
+async def youtube_oauth_start(request):
+    """One-owner, first-time-only Google consent; authenticated channel is pinned."""
+    try:
+        return RedirectResponse(oauth_web.start_authorization(), status_code=302,
+                                headers={"cache-control": "no-store", "referrer-policy": "no-referrer"})
+    except Exception:
+        return PlainTextResponse("Autorização indisponível ou canal já conectado.", status_code=403)
+
+
+async def youtube_oauth_callback(request):
+    """Google redirects here; single-use state, channel ID and scope checks are mandatory."""
+    if request.query_params.get("error"):
+        return PlainTextResponse("Permissão negada. Nada foi conectado.", status_code=403)
+    try:
+        result = oauth_web.complete_authorization(
+            request.query_params.get("code", ""), request.query_params.get("state", ""),
+        )
+        return PlainTextResponse("YouTube conectado ao AutoClips: " + result["channel"]["name"],
+                                 headers={"cache-control": "no-store", "referrer-policy": "no-referrer"})
+    except Exception:
+        return PlainTextResponse("Autorização falhou. Confirme o canal ClipCon e o callback no Google Cloud.",
+                                 status_code=400, headers={"cache-control": "no-store"})
+
+
+async def youtube_connection_status(request):
+    try:
+        return JSONResponse(oauth_web.connection_status(), headers={"cache-control": "no-store"})
+    except Exception:
+        return JSONResponse({"connected": False, "error": "authorization_unavailable"}, status_code=503)
 
 
 @asynccontextmanager
@@ -34,6 +66,9 @@ async def lifespan(app):
 inner = Starlette(
     routes=[
         Route("/health", health, methods=["GET"]),
+        Route("/oauth/youtube/start", youtube_oauth_start, methods=["GET"]),
+        Route("/oauth/youtube/callback", youtube_oauth_callback, methods=["GET"]),
+        Route("/api/youtube/status", youtube_connection_status, methods=["GET"]),
         Route("/api/uploads", upload_media, methods=["PUT"]),
         Route("/api/projects", create_project, methods=["POST"]),
         Route("/api/jobs/{job_id}", status_job, methods=["GET"]),

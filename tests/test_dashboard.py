@@ -130,6 +130,36 @@ def test_source_authorization_required(working):
         assert response.status_code==403
 
 
+def test_original_source_upload_queues_real_autoclips_ingest(working):
+    # A real MP4 from ffmpeg; upload requires private browser login and CSRF header.
+    import subprocess
+    from autoclips.settings import home
+    original=working/"demo_original.mp4"
+    subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-y",
+                    "-f","lavfi","-i","color=c=blue:s=320x240:r=15",
+                    "-t","11","-c:v","mpeg4",str(original)],check=True)
+    assert original.stat().st_size>1024
+    app=Starlette(routes=[
+        Route("/auth/login",dashboard.login,methods=["POST"]),
+        Route("/api/console/upload-source",dashboard.upload_source,methods=["POST"]),
+    ])
+    with TestClient(app,base_url="https://autoclips-worker-production.up.railway.app") as c:
+        assert c.post("/api/console/upload-source",content=original.read_bytes(),
+                      headers={"Content-Type":"video/mp4","X-Autoclips-Action":"1"}).status_code==401
+        c.post("/auth/login",json={"password":"test-owner-password-is-secure"})
+        assert c.post("/api/console/upload-source",content=original.read_bytes(),
+                      headers={"Content-Type":"video/mp4"}).status_code==403
+        response=c.post("/api/console/upload-source",content=original.read_bytes(),
+                        headers={"Content-Type":"video/mp4","X-Autoclips-Action":"1"})
+        assert response.status_code==201, response.text
+        value=response.json()
+        with db.conn() as sql:
+            row=sql.execute("SELECT source_kind,status,link FROM dashboard_sources WHERE id=?",
+                            (value["id"],)).fetchone()
+        assert row["source_kind"]=="file" and row["status"]=="queued"
+        assert (home()/"imports"/row["link"]).exists()
+
+
 def test_video_file_stays_private_without_dashboard_cookie(working):
     clip=add_clip(working,1234)
     app=Starlette(routes=[Route("/api/console/media/{clip_id}",dashboard.media,methods=["GET"]),

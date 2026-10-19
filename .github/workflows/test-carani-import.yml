@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg fonts-dejavu-core
-          python -m pip install -U pytest 'faster-whisper>=1.1,<2'
+          python -m pip install -U pytest 'faster-whisper>=1.1,<2' 'av>=11,<19'
       - name: Fetch authorized full original into AutoClips
         env:
           AUTOCLIPS_HOME: ${{ runner.temp }}/autoclips

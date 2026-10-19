@@ -37,15 +37,15 @@ def safe_credit(text: str) -> str:
 def write_middle_captions(words: list[dict], start: float, end: float, ass: Path) -> int:
     count = captions_ass(words, start, end, ass, style='viral')
     data = ass.read_text(encoding='utf-8')
-    # PlayResX/Y 1080x1920, center location is stable at any render resolution.
+    # PlayResX/Y 1080x1920; captions occupy the separate middle divider.
     lines = []
     for line in data.splitlines():
         if line.startswith('Dialogue: '):
             prefix, body = line.rsplit(',,', 1)
-            line = prefix + ',,' + r'{\pos(540,960)}' + body
+            line = prefix + ',,' + r'{\an5\pos(540,960)}' + body
         lines.append(line)
     data='\n'.join(lines)+'\n'
-    data=data.replace('Style: Main,DejaVu Sans,74,', 'Style: Main,DejaVu Sans,64,')
+    data=data.replace('Style: Main,DejaVu Sans,74,', 'Style: Main,DejaVu Sans,58,')
     data=data.replace(',-1,0,0,0,100,100,0,0,1,5,1,2,65,65,370,1',
                       ',-1,0,0,0,100,100,0,0,1,5,1,5,65,65,0,1')
     ass.write_text(data,encoding='utf-8')
@@ -57,10 +57,13 @@ def build_filters(ass_name: str, focal_x: float = .5, size: tuple[int,int]=(540,
     if w<240 or h<400 or w%2 or h%2:
         raise ValueError('Tamanho inválido: largura/altura pares e suficientes')
     focal=clamp_focal(focal_x)
-    top_h=round(h*.57)//2*2
-    lower_start=top_h  # adjacent panels: no black band
+    # Give captions their own visible dark middle strip; they must not cover
+    # either the speaker or the contextual bottom photo.
+    top_h=round(h*.43)//2*2
+    lower_start=round(h*.57)//2*2
     lower_h=h-lower_start
     # Instead of stretching images, crop to fill each panel around focal point.
+    # The unpainted gap remains black, giving white/yellow captions contrast.
     top=(f'[0:v]scale={w}:{top_h}:force_original_aspect_ratio=increase,'
          f'crop={w}:{top_h}:x=(in_w-out_w)*{focal}:y=(in_h-out_h)/2,'
          f'pad={w}:{h}:0:0:black[top]')
@@ -149,4 +152,5 @@ def render_split(*, source: str | Path, words: list[dict],start: float,end: floa
          '-pix_fmt','yuv420p','-c:a','aac','-b:a','128k','-movflags','+faststart','-shortest',str(out)]
     subprocess.run(cmd,cwd=str(out.parent),capture_output=True,text=True,check=True)
     return {'output':str(out),'duration':round(end-start,2),'dimensions':f'{size[0]}x{size[1]}',
-            'layout':'top_video_bottom_image','image_mode':mode,'caption_events':count,'credit':safe_credit(credit)}
+            'layout':'top_video_middle_captions_bottom_image','image_mode':mode,'caption_events':count,
+            'caption_strip':'center','credit':safe_credit(credit)}

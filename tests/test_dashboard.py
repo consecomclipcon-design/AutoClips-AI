@@ -320,3 +320,41 @@ def test_completed_english_import_is_rejected_before_rendering(working, monkeypa
         assert state["status"]=="failed"
         assert "português" in state["error"]
         assert c.execute("SELECT count(*) FROM clips WHERE project_id=?",(project_id,)).fetchone()[0]==0
+
+def test_quality_recut_is_one_time_and_never_publishes(working,monkeypatch):
+    import json
+    monkeypatch.setenv("AUTOCLIPS_PT_QUALITY_RETEST","true")
+    ident="src_pt_quality_demo"
+    proj="prj_pt_quality_demo"
+    transcript=working/"projects"/proj/"transcript.json"
+    transcript.parent.mkdir(parents=True,exist_ok=True)
+    sentences=[
+      "Você sabia que o atleta treinava todos os dias antes da competição?",
+      "Ele começou sem equipamento e aprendeu a trabalhar com o próprio corpo.",
+      "A diferença apareceu quando ele encontrou uma rotina mais inteligente.",
+      "Durante meses, ele manteve uma disciplina que ninguém imaginava possível.",
+      "No fim, ele melhorou a técnica e conseguiu completar o desafio."
+    ]
+    transcript.write_text(json.dumps({"language":"pt","segments":[
+        {"start":i*9.0,"end":(i+1)*9.0,"text":text}
+         for i,text in enumerate(sentences)],"words":[]}),encoding="utf-8")
+    with db.conn() as c:
+        c.execute("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (proj,"hosted","signed.mp4","Depois do Olympia",
+             str(transcript.parent/"source.mp4"),str(transcript),45,"ready",None,db.now()))
+        c.execute("""INSERT INTO dashboard_sources
+            (id,link,source_kind,status,project_id,original_video_id,created_at,updated_at)
+            VALUES (?,?,'hosted','awaiting_review',?,?,?,?)""",
+            (ident,"signed.mp4",proj,"e2Mou7KYXyo",db.now(),db.now()))
+    monkeypatch.setattr("shutil.disk_usage",lambda _: type("Usage",(),{"free":500*1024*1024})())
+    render_calls=[]
+    def fake_render(*args,**kwargs):
+        render_calls.append(args)
+        return {"clip_id":"clip_pt_quality_recut","job_id":"job_pt_quality_recut"}
+    monkeypatch.setattr(pipeline,"start_render_split",fake_render)
+    dashboard._queue_one_portuguese_quality_retest()
+    dashboard._queue_one_portuguese_quality_retest()
+    assert len(render_calls)==1
+    with db.conn() as c:
+        assert c.execute("SELECT count(*) FROM dashboard_quality_retests").fetchone()[0]==1
+        assert c.execute("SELECT count(*) FROM dashboard_publishes").fetchone()[0]==0

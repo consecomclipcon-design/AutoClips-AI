@@ -65,7 +65,7 @@ def _db_init():
                      SET status='queued', error=NULL, project_id=NULL, job_id=NULL,
                          auto_retry_count=auto_retry_count+1, updated_at=?
                      WHERE source_kind='youtube' AND status='failed'
-                       AND auto_retry_count<2
+                       AND auto_retry_count<3
                        AND (lower(coalesce(error,'')) LIKE '%not a bot%'
                             OR lower(coalesce(error,'')) LIKE '%sign in to confirm%'
                             OR lower(coalesce(error,'')) LIKE '%youtube bloqueou%'

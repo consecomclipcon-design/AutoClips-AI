@@ -11,9 +11,9 @@ OPENERS = (
     "você sabia", "sabia que", "imagina", "olha só", "olha isso", "eu nunca",
     "nunca", "ninguém", "o segredo", "a verdade", "o problema", "o erro",
     "o pior", "o melhor", "sabe o que", "por que", "por quê", "como",
-    "quando", "qual", "quem", "o que", "por isso", "não acredito",
+    "qual", "quem", "o que", "por isso", "não acredito",
     "aconteceu", "consegui", "descobri", "absurdo", "história", "incrível",
-    "precisa", "muito", "essa", "esse", "se você", "cê sabe",
+    "se você", "cê sabe",
 )
 BAD_ENDINGS = ("porque", "mas", "então", "quando", "se", "que", "e", "ou", "pra", "para")
 

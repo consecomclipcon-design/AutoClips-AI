@@ -142,3 +142,12 @@ def test_reject_malformed_proxy(tmp_path,monkeypatch):
     monkeypatch.setenv("AUTOCLIPS_YOUTUBE_PROXY","file:///etc/passwd")
     with pytest.raises(RuntimeError):
         _youtube_options(tmp_path,"mweb",None)
+
+
+def test_railway_ipv6_egress_opt_in(tmp_path,monkeypatch):
+    from autoclips.media import _youtube_options
+    monkeypatch.delenv("AUTOCLIPS_YOUTUBE_PROXY",raising=False)
+    monkeypatch.setenv("AUTOCLIPS_YOUTUBE_IPV6","true")
+    assert _youtube_options(tmp_path,"mweb",None)["source_address"]=="::"
+    monkeypatch.setenv("AUTOCLIPS_YOUTUBE_IPV6","false")
+    assert "source_address" not in _youtube_options(tmp_path,"mweb",None)

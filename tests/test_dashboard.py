@@ -47,14 +47,14 @@ def test_youtube_bot_failure_requeued_once_without_owner_intervention(working):
     assert row["status"]=="queued"
     assert row["auto_retry_count"]==1
     with db.conn() as c:
-        c.execute("UPDATE dashboard_sources SET status='failed' WHERE id=?",(key,))
+        c.execute("UPDATE dashboard_sources SET status='failed', error='Sign in to confirm not a bot' WHERE id=?",(key,))
     dashboard._db_init()
     with db.conn() as c:
         row=c.execute("SELECT status,auto_retry_count FROM dashboard_sources WHERE id=?",(key,)).fetchone()
     assert row["status"]=="queued"
     assert row["auto_retry_count"]==2
     with db.conn() as c:
-        c.execute("UPDATE dashboard_sources SET status='failed' WHERE id=?",(key,))
+        c.execute("UPDATE dashboard_sources SET status='failed', error='Sign in to confirm not a bot' WHERE id=?",(key,))
     dashboard._db_init()
     with db.conn() as c:
         row=c.execute("SELECT status,auto_retry_count FROM dashboard_sources WHERE id=?",(key,)).fetchone()

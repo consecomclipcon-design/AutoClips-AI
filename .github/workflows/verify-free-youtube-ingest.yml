@@ -1,0 +1,93 @@
+name: Verify free GitHub runner video ingest (non-production)
+on:
+  push:
+    paths:
+      - ".github/workflows/verify-free-youtube-ingest.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install free yt-dlp and check tool versions
+        run: |
+          python -m pip install -q -U "yt-dlp[default]"
+          yt-dlp --version
+          ffmpeg -version | head -1
+      - name: Test direct video metadata on a fresh runner network
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, subprocess, time
+          video="https://www.youtube.com/watch?v=NmjiNtvSkFk"
+          variants=[
+            ("tv","youtube:player_client=tv"),
+            ("web_safari","youtube:player_client=web_safari"),
+            ("mweb","youtube:player_client=mweb"),
+          ]
+          for name, arg in variants:
+              cmd=["yt-dlp","--ignore-config","--no-playlist","--skip-download",
+                   "--no-warnings","--no-progress","--socket-timeout","18",
+                   "--retries","1","--extractor-args",arg,
+                   "--print","%(id)s :: %(duration)s :: %(format_id)s",
+                   "-f","b[height<=?480]/best[height<=?360]",video]
+              start=time.monotonic()
+              try:
+                  run=subprocess.run(cmd,capture_output=True,text=True,timeout=75)
+                  print("VARIANT",name,"CODE",run.returncode,"SECONDS",round(time.monotonic()-start,1))
+                  if run.returncode==0:
+                      print("METADATA_OK",name,run.stdout.strip()[:180])
+                      with open("/tmp/autoclips-found-client","w") as f:f.write(name)
+                      break
+                  print("FAILURE_KIND", "bot_challenge" if "not a bot" in run.stderr else
+                        "forbidden" if "403" in run.stderr else
+                        "unavailable" if "unavailable" in run.stderr.lower() else
+                        "other")
+              except subprocess.TimeoutExpired:
+                  print("VARIANT",name,"TIMEOUT")
+          else:
+              print("RESULT: ALL_HOSTED_EGRESS_VARIANTS_FAILED")
+          PY
+      - name: Actually fetch five seconds of the same real video, if metadata worked
+        shell: bash
+        run: |
+          if [ ! -f /tmp/autoclips-found-client ]; then
+            echo "NO_REAL_DOWNLOAD_VERIFIED: YouTube rejected the GitHub-hosted runner."
+            exit 0
+          fi
+          client="$(cat /tmp/autoclips-found-client)"
+          set +e
+          timeout 110s yt-dlp --ignore-config --no-playlist --no-warnings --no-progress \
+            --socket-timeout 18 --retries 1 --fragment-retries 1 \
+            --extractor-args "youtube:player_client=$client" \
+            --download-sections "*00:00:03-00:00:08" \
+            --force-keyframes-at-cuts \
+            -f "b[height<=?480]/best[height<=?360]" \
+            -o "/tmp/cliptest.%(ext)s" \
+            "https://www.youtube.com/watch?v=NmjiNtvSkFk"
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "REAL_DOWNLOAD_FAILED status=$status"
+            exit 0
+          fi
+          for f in /tmp/cliptest.*; do
+            [ -f "$f" ] || continue
+            bytes="$(stat -c '%s' "$f")"
+            if [ "$bytes" -lt 5000 ]; then
+              echo "REAL_DOWNLOAD_FAILED: output too short"
+              exit 0
+            fi
+            ffprobe -v error -show_entries format=duration -of default=nw=1 "$f" || exit 1
+            echo "REAL_DOWNLOAD_CONFIRMED client=$client bytes=$bytes"
+            exit 0
+          done
+          echo "REAL_DOWNLOAD_FAILED: file missing"

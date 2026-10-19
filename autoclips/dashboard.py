@@ -368,8 +368,9 @@ async def review(request):
                 return _answer({"error": "Confirme os direitos de uso antes de publicar este corte."}, 403)
             title=(data.get("title") or (existing["name"] + " #Shorts"))[:100]
             description=(data.get("description") or ("Corte de " + existing["name"] + ". #Shorts"))[:5000]
-            result=enqueue_publication(clip_id,title=title,description=description,explicitly_approved=True)
-            return _answer({"result":result,"action":"queued_public"},202)
+            result=enqueue_publication(clip_id,title=title,description=description,
+                                        explicitly_approved=True,privacy="private")
+            return _answer({"result":result,"action":"queued_private"},202)
         # A dislike records exactly what the owner wants changed. A new clip
         # can only be rendered if the source and word-level transcript exist.
         if clip.get("uploaded_url"):

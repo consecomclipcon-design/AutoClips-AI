@@ -57,6 +57,10 @@ def _db_init():
           decision TEXT NOT NULL, comment TEXT,
           created_at TEXT NOT NULL, remake_clip_id TEXT
         );
+        CREATE TABLE IF NOT EXISTS dashboard_quality_retests(
+          source_id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+          status TEXT NOT NULL, clip_id TEXT, created_at TEXT NOT NULL
+        );
         """)
         # Retry a bot-blocked link once for each materially new download
         # strategy. Normal UI reads and process restarts never burn retries.
@@ -796,11 +800,71 @@ def _archive_reviewed_sources() -> int:
     return released
 
 
+def _queue_one_portuguese_quality_retest():
+    """Re-cut one already-imported PT source, once, without duplicate downloads.
+
+    A source must already have a transcript and no active jobs; this never
+    grants copyright, queues uploads or removes the owner's earlier clips.
+    """
+    if os.getenv("AUTOCLIPS_PT_QUALITY_RETEST") != "true":
+        return
+    import shutil
+    if shutil.disk_usage(home()).free < 225 * 1024 * 1024:
+        return
+    with db.conn() as c:
+        active=c.execute("""SELECT count(*) FROM dashboard_sources
+                 WHERE status IN ('importing','rendering')""").fetchone()[0]
+        if active:
+            return
+        row=c.execute("""SELECT s.id,s.project_id,p.transcript,p.duration
+             FROM dashboard_sources s JOIN projects p ON p.id=s.project_id
+             WHERE s.status='awaiting_review'
+               AND s.original_video_id IN ('e2Mou7KYXyo','cbmRw1Y9QPQ')
+               AND p.transcript IS NOT NULL
+               AND NOT EXISTS(SELECT 1 FROM dashboard_quality_retests r
+                              WHERE r.source_id=s.id)
+             ORDER BY CASE s.original_video_id WHEN 'e2Mou7KYXyo' THEN 0 ELSE 1 END
+             LIMIT 1""").fetchone()
+    if not row:
+        return
+    try:
+        transcript=load_transcript(row["transcript"])
+        picks=select_contextual_portuguese_clips(transcript,float(row["duration"] or 0),count=1)
+        if not picks:
+            result="needs_editorial_review"
+        else:
+            result="claimed"
+        with db.conn() as c:
+            ok=c.execute("""INSERT OR IGNORE INTO dashboard_quality_retests
+                (source_id,project_id,status,created_at) VALUES (?,?,?,?)""",
+                (row["id"],row["project_id"],result,db.now())).rowcount
+        if not ok or not picks:
+            if not picks:
+                print("AUTOCLIPS_PT_QUALITY_NO_STRONG_HOOK",row["id"],flush=True)
+            return
+        item=picks[0]
+        planned=pipeline.start_render_split(row["project_id"],
+                       float(item["start"]),float(item["end"]))
+        with db.conn() as c:
+            c.execute("UPDATE dashboard_quality_retests SET clip_id=?,status='rendering' WHERE source_id=?",
+                      (planned["clip_id"],row["id"]))
+            c.execute("""INSERT OR IGNORE INTO dashboard_renders
+                         (clip_id,source_id,job_id,status,created_at)
+                         VALUES (?,?,?,'queued',?)""",
+                      (planned["clip_id"],row["id"],planned["job_id"],db.now()))
+            c.execute("""UPDATE dashboard_sources SET status='rendering',updated_at=?
+                         WHERE id=?""",(db.now(),row["id"]))
+        print("AUTOCLIPS_PT_QUALITY_RETEST_QUEUED",row["id"],planned["clip_id"],flush=True)
+    except Exception as exc:
+        print("AUTOCLIPS_PT_QUALITY_RETEST_DEFERRED",type(exc).__name__,flush=True)
+
+
 def _worker():
     while True:
         try:
             _prune_failed_hosted_imports()
             _archive_reviewed_sources()
+            _queue_one_portuguese_quality_retest()
             _tick()
         except Exception as exc:
             print("AUTOCLIPS_DASHBOARD_WORKER_ERROR",type(exc).__name__,flush=True)

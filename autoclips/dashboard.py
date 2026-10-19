@@ -81,6 +81,25 @@ def _db_init():
         if r.rowcount:
             print("AUTOCLIPS_VIDIQ_CACHE_RECOVERY_ENQUEUED",r.rowcount,flush=True)
 
+        # One-time NASA/JPL public-domain validation requested by the owner.
+        # Never logs signed media URL and never reposts on restart.
+        nasa_url = os.getenv("AUTOCLIPS_PRIVATE_VALIDATION_MEDIA_URL", "")
+        if os.getenv("AUTOCLIPS_PRIVATE_VALIDATION_ENABLED") == "true" and nasa_url:
+            parsed_test = urlparse(nasa_url)
+            if (parsed_test.scheme == "https" and
+                    parsed_test.hostname == "storage.googleapis.com" and
+                    parsed_test.path.endswith(".mp4") and
+                    not parsed_test.username and not parsed_test.password):
+                c.execute("""INSERT OR IGNORE INTO dashboard_sources
+                    (id,link,source_kind,status,created_at,updated_at,title,original_video_id)
+                    VALUES (? ,? ,'hosted','queued',?,?,?,?)""",
+                    ("src_nasa_validation_20261019", nasa_url,
+                     "2026-01-01T00:00:00+00:00", db.now(),
+                     "NASA JPL - What Is a Dwarf Planet (teste privado)",
+                     "Er5L6cxnRTc"))
+            else:
+                print("AUTOCLIPS_PRIVATE_VALIDATION_URL_INVALID", flush=True)
+
         # The signed media URLs are supplied only as PRIVATE Railway variables.
         # Never log them, put them in Git, or expose in a UI response.
         raw_batch = os.getenv("AUTOCLIPS_VIDIQ_REVIEW_BATCH", "")
@@ -399,6 +418,45 @@ async def review(request):
         return _answer({"error":str(exc)},400)
 
 
+def _queue_one_nasa_private_validation():
+    """User-requested, one-time PRIVATE E2E test with a NASA/JPL source only.
+
+    Never auto-approves the owner's other sources. The database's unique
+    publication row ensures restart/retry does not cause duplicate uploads.
+    """
+    if os.getenv("AUTOCLIPS_PRIVATE_VALIDATION_ENABLED") != "true":
+        return
+    source_id = "src_nasa_validation_20261019"
+    with db.conn() as c:
+        row = c.execute("""SELECT s.project_id,s.status,s.original_video_id
+                 FROM dashboard_sources s WHERE s.id=?""", (source_id,)).fetchone()
+        if (not row or row["status"] != "awaiting_review" or
+                row["original_video_id"] != "Er5L6cxnRTc"):
+            return
+        attempted = c.execute("""SELECT 1 FROM dashboard_publishes q
+            JOIN clips k ON q.clip_id=k.id WHERE k.project_id=? LIMIT 1""",
+            (row["project_id"],)).fetchone()
+        if attempted:
+            return
+        choice = c.execute("""SELECT id FROM clips
+            WHERE project_id=? AND status='ready' AND path IS NOT NULL
+            ORDER BY created ASC LIMIT 1""", (row["project_id"],)).fetchone()
+    if not choice:
+        return
+    try:
+        result = enqueue_publication(
+            choice["id"],
+            title="AutoClips | Teste privado NASA JPL - Planetas anões",
+            description=("Validação privada do fluxo automático AutoClips AI. "
+                         "Vídeo de origem: NASA/JPL-Caltech, "
+                         "https://www.youtube.com/watch?v=Er5L6cxnRTc. "
+                         "Corte e legendas produzidos automaticamente. #Shorts"),
+            explicitly_approved=True, privacy="private")
+        print("AUTOCLIPS_NASA_PRIVATE_TEST_QUEUED", result["clip_id"], flush=True)
+    except Exception as exc:
+        print("AUTOCLIPS_NASA_PRIVATE_TEST_DEFERRED", type(exc).__name__, flush=True)
+
+
 def _tick():
     _db_init()
     # Start at most one source import at a time; the CPU only has two render workers.
@@ -487,6 +545,7 @@ def _tick():
                      updated_at=? WHERE status='rendering' AND NOT EXISTS (
                      SELECT 1 FROM dashboard_renders r
                      WHERE r.source_id=dashboard_sources.id AND r.status='queued')""",(db.now(),))
+    _queue_one_nasa_private_validation()
     publish_next()
 
 

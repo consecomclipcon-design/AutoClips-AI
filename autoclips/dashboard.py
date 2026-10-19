@@ -417,3 +417,56 @@ def start_background_worker():
     t=threading.Thread(target=_worker,name="autoclips-review-publish",daemon=True)
     t.start()
     _WORKER_STARTED=True
+
+
+async def upload_ready(request):
+    """Owner-uploaded, already edited portrait MP4, eligible for review and like."""
+    err = _auth(request, write=True)
+    if err: return err
+    if request.headers.get("content-type","").split(";",1)[0] not in ("video/mp4","application/octet-stream"):
+        return _answer({"error": "mp4_required"}, 415)
+    try:
+        size = int(request.headers.get("content-length", "-1"))
+    except ValueError:
+        return _answer({"error":"bad_file_size"},400)
+    if not 1000 <= size <= 180*1024*1024:
+        return _answer({"error":"file_size_outside_limit"},413)
+    _db_init()
+    ident=db.newid("clip")
+    target=home()/"imports"/(ident+"_owner.mp4")
+    tmp=target.with_suffix(".part")
+    length=0
+    try:
+        with tmp.open("wb") as fd:
+            async for chunk in request.stream():
+                length+=len(chunk)
+                if length>180*1024*1024:
+                    return _answer({"error":"upload_too_large"},413)
+                fd.write(chunk)
+        if length!=size:
+            return _answer({"error":"incomplete_upload"},422)
+        os.replace(tmp,target)
+        from .media import probe
+        info=probe(target)
+        if not 1<=float(info["duration"])<=180 or not (info.get("width")>0 and info.get("height")>info.get("width")):
+            target.unlink(missing_ok=True)
+            return _answer({"error":"requires_vertical_video_up_to_180s"},422)
+        project_id=db.newid("prj")
+        with db.conn() as c:
+            c.execute("""INSERT INTO projects
+                         (id,source_kind,source,name,media,transcript,duration,status,error,created)
+                         VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                      (project_id,"file",target.name,"Short enviado pelo proprietário",
+                       str(target),None,float(info["duration"]),"ready",None,db.now()))
+            c.execute("""INSERT INTO clips
+                         (id,project_id,start,end,style,path,status,error,created,uploaded_url)
+                         VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                      (ident,project_id,0,float(info["duration"]),"split",str(target),
+                       "ready",None,db.now(),None))
+        return _answer({"clip_id":ident,"duration":info["duration"],"status":"ready"},201)
+    except Exception as exc:
+        target.unlink(missing_ok=True)
+        print("DASHBOARD_MP4_UPLOAD_ERROR",type(exc).__name__,flush=True)
+        return _answer({"error":"upload_failed","type":type(exc).__name__},500)
+    finally:
+        tmp.unlink(missing_ok=True)

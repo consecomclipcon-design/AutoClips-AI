@@ -68,7 +68,8 @@ def _db_init():
                        AND auto_retry_count=0
                        AND (lower(coalesce(error,'')) LIKE '%not a bot%'
                             OR lower(coalesce(error,'')) LIKE '%sign in to confirm%'
-                            OR lower(coalesce(error,'')) LIKE '%youtube bloqueou%')
+                            OR lower(coalesce(error,'')) LIKE '%youtube bloqueou%'
+                            OR lower(coalesce(error,'')) LIKE '%download do youtube bloqueado%')
                   """, (db.now(),))
 
 

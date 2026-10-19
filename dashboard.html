@@ -66,7 +66,7 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
     <h3 class="panel-title">Adicionar vídeos</h3>
     <p class="small">Cole um link do YouTube por linha (até 25 por envio). Pode adicionar quantos lotes desejar, respeitando o armazenamento disponível.</p>
     <textarea id="links" class="input" rows="6" placeholder="https://youtu.be/...&#10;https://www.youtube.com/watch?v=..."></textarea>
-    <label class="small" style="display:flex;align-items:flex-start;gap:7px;margin:10px 0"><input type="checkbox" id="rights"/> Tenho autorização para usar e republicar estes vídeos.</label>
+    <p class="hint">Ao adicionar um link, você declara que tem permissão para utilizar e republicar o vídeo. O AutoClips apenas cria os cortes; a publicação ocorre após sua aprovação.</p>
     <button class="btn primary" id="addLinks">＋ Enviar para edição</button>
     <div class="notice">O download direto do YouTube pode sofrer bloqueio anti-bot. Links MP4 hospedados também são aceitos. Se a importação for bloqueada, você pode enviar o arquivo original já comprimido abaixo, para o AutoClips gerar os cortes.</div>
     <div class="line"></div>
@@ -178,7 +178,7 @@ $('uploadReady').onclick=async()=>{
  }catch(e){showToast('Falha no envio: '+e.message)}
  finally{$('uploadReady').disabled=false;$('uploadReady').textContent='⬆ Importar MP4 pronto'}
 };
-$('addLinks').onclick=async()=>{if(!$('rights').checked){showToast('Confirme os direitos de uso e publicação.');return}
+$('addLinks').onclick=async()=>{
  const links=$('links').value.trim();if(!links){showToast('Cole pelo menos um link.');return}
  try{const res=await req('/api/console/links',{method:'POST',body:JSON.stringify({links,authorized:true})});const count=res.items.filter(x=>x.status==='queued').length;
  showToast(count+' link(s) adicionado(s) à fila.');$('links').value='';await refresh()}catch(e){showToast('Erro: '+e.message)}};

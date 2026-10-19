@@ -48,6 +48,26 @@ def simulate_google(monkeypatch, channel_id, scopes=None):
     return async_calls
 
 
+def test_preflight_explains_authorization_pending_without_secrets(setup, monkeypatch):
+    status = oauth_web.safe_diagnostics()
+    assert status["ready"] is True
+    assert status["connected"] is False
+    assert status["reason"] == "authorization_required"
+    assert "testing-only-placeholder" not in str(status)
+
+
+def test_preflight_distinguishes_missing_env_and_connection(setup, monkeypatch):
+    monkeypatch.delenv("GOOGLE_REDIRECT_URI")
+    assert oauth_web.safe_diagnostics()["reason"] == "missing_environment"
+    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://example.test/oauth/youtube/callback")
+    state = extract_state(oauth_web.start_authorization())
+    simulate_google(monkeypatch, "UC" + "x" * 22)
+    oauth_web.complete_authorization("good-code", state)
+    status = oauth_web.safe_diagnostics()
+    assert status["reason"] == "connected"
+    assert status["connected"] is True
+
+
 def test_oauth_url_and_encrypted_storage(setup, monkeypatch):
     state = extract_state(oauth_web.start_authorization())
     calls = simulate_google(monkeypatch, "UC" + "x" * 22)

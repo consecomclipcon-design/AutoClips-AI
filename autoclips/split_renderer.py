@@ -137,6 +137,19 @@ def render_split(*, source: str | Path, words: list[dict],start: float,end: floa
         count=write_editorial_captions(words,start,end,ass,hook_white=hook_white or '',hook_red=hook_red or '')
     else:
         count=write_middle_captions(words,start,end,ass)
+    if credit:
+        # Make Creative Commons attribution visible in the final MP4 itself,
+        # not just in metadata that disappears on reposts.
+        value = _ass_safe(safe_credit(credit))
+        if value:
+            current = ass.read_text(encoding='utf-8')
+            style = ('Style: PhotoCredit,DejaVu Sans,26,&H00FFFFFF,&H000000FF,'
+                     '&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,20,20,18,1\\n')
+            current = current.replace('[Events]',style+'[Events]',1)
+            current += ('Dialogue: 2,0:00:00.00,'+_ass_time(end-start)+
+                        ',PhotoCredit,,0,0,0,,'+
+                        r'{\\an2\\pos(540,1870)}'+value+'\\n')
+            ass.write_text(current, encoding='utf-8')
     if image is None:
         img=out.with_name(out.stem+'_still.png')
         subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y',

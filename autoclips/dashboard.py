@@ -92,7 +92,7 @@ def _db_init():
                                  (id,link,source_kind,status,created_at,updated_at,title,original_video_id)
                                  VALUES (?,?,'hosted','queued',?,?,?,?)""",
                               (sid, media_url, db.now(), db.now(), title, video_id))
-                print("AUTOCLIPS_VIDIQ_MANIFEST_APPLIED", len(entries), flush=True)
+                # Idempotent across restarts and dashboard polling.
             except (ValueError, TypeError, KeyError) as exc:
                 print("AUTOCLIPS_VIDIQ_MANIFEST_INVALID", type(exc).__name__, flush=True)
 
@@ -394,6 +394,11 @@ def _tick():
         row=c.execute("""SELECT * FROM dashboard_sources WHERE status='queued'
                          ORDER BY created_at LIMIT 1""").fetchone() if not active else None
     if row:
+        # Preserve the 500 MB volume for reviewable rendered clips.
+        import shutil
+        if shutil.disk_usage(home()).free < 95 * 1024 * 1024:
+            print("AUTOCLIPS_SOURCE_QUEUE_PAUSED_STORAGE_LOW",flush=True)
+            return
         try:
             print("AUTOCLIPS_SOURCE_QUEUE_START", row["id"], row["source_kind"], flush=True)
             res=pipeline.new_project(row["link"],source_kind=row["source_kind"],
@@ -430,8 +435,14 @@ def _tick():
                 project=pipeline.db.one("projects",row["project_id"])
                 if not project.get("transcript"):
                     raise ValueError("Source has no transcript")
-                picks=pipeline.suggest_clips(row["project_id"],count=3,
-                                             min_seconds=35,max_seconds=90)["suggestions"]
+                duration=float(project.get("duration") or 0)
+                if duration <= 12:
+                    raise ValueError("Vídeo curto demais para gerar corte")
+                desired = 1 if duration < 180 else (2 if duration < 360 else 3)
+                min_window = min(35, max(10, int(duration*0.52)))
+                max_window = min(90, max(min_window,int(duration)))
+                picks=pipeline.suggest_clips(row["project_id"],count=desired,
+                                             min_seconds=min_window,max_seconds=max_window)["suggestions"]
                 if not picks: raise ValueError("No promising sections found")
                 for item in picks:
                     started=pipeline.start_render_split(row["project_id"],

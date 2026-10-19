@@ -10,6 +10,7 @@ from .media import import_local, import_youtube_approved, import_hosted_approved
 from .ranking import suggest
 from .renderer import render
 from .split_renderer import render_split, validate_window, clamp_focal
+from .contextual_image import fetch_public_domain_image, topic_terms
 from .context import contextual_window
 from .settings import home
 from .transcript import transcribe, save_transcript, load_transcript
@@ -236,12 +237,43 @@ def _render_split(clip_id: str, image_file: str | None, focal_x: float,
     try:
         transcript = load_transcript(project["transcript"])
         target = home() / "exports" / f"{clip_id}.mp4"
-        outcome = render_split(source=_media_for_render(project),image=image_file,
+        source = _media_for_render(project)
+        # An original frame is allowed only as a clearly labelled preview.
+        # Auto-approval requires a separate, topic-matched, licensed photo.
+        photo = None
+        photo_credit = ""
+        if image_file is None:
+            title = str(project.get("name") or "")
+            spoken = " ".join(str(seg.get("text", "")) for seg in transcript["segments"]
+                            if seg["end"] > clip["start"] and seg["start"] < clip["end"]).lower()
+            terms = topic_terms(title)
+            if terms and any(term in spoken for term in terms):
+                photo = fetch_public_domain_image(title, target.with_name(clip_id + "_related"))
+        selected_image = image_file or (photo["path"] if photo else None)
+        if photo:
+            photo_credit = photo["credit"]
+        outcome = render_split(source=source,image=selected_image,
                                words=transcript["words"],start=clip["start"],end=clip["end"],
-                               output=target,focal_x=focal_x,size=(540,960),
+                               output=target,focal_x=focal_x,size=(540,960),credit=photo_credit,
                                hook_white=hook_white or None,hook_red=hook_red or None)
+        image_kind = ("owner_provided" if image_file else
+                      "wikimedia_public_domain" if photo else "source_frame_preview_only")
+        quality = {
+            "language": transcript.get("language"),
+            "image_mode": image_kind,
+            "image_credit": photo_credit,
+            "image_title": photo["title"] if photo else "",
+            "caption_events": outcome["caption_events"],
+            "layout": outcome["layout"],
+            "auto_publish_ready": (transcript.get("language") == "pt" and
+                                   outcome["caption_events"] > 0 and
+                                   image_kind in {"wikimedia_public_domain", "owner_provided"})
+        }
+        # Do not label an ordinary extracted frame as context photography.
+        target.with_suffix(".qa.json").write_text(
+            json.dumps(quality, ensure_ascii=False), encoding="utf-8")
         db.update("clips",clip_id,path=str(target),status="ready")
-        return {"clip_id":clip_id,**outcome}
+        return {"clip_id":clip_id,**outcome,"quality":quality}
     except Exception as exc:
         db.update("clips",clip_id,status="failed",error=str(exc))
         raise

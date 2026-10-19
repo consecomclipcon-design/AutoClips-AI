@@ -257,17 +257,19 @@ def _render_split(clip_id: str, image_file: str | None, focal_x: float,
                                output=target,focal_x=focal_x,size=(540,960),credit=photo_credit,
                                hook_white=hook_white or None,hook_red=hook_red or None)
         image_kind = ("owner_provided" if image_file else
-                      "wikimedia_public_domain" if photo else "source_frame_preview_only")
+                      photo["mode"] if photo else "source_frame_preview_only")
         quality = {
             "language": transcript.get("language"),
             "image_mode": image_kind,
             "image_credit": photo_credit,
             "image_title": photo["title"] if photo else "",
+            "image_source_url": photo["source_page"] if photo else "",
+            "image_license_url": photo["license_url"] if photo else "",
             "caption_events": outcome["caption_events"],
             "layout": outcome["layout"],
             "auto_publish_ready": (transcript.get("language") == "pt" and
                                    outcome["caption_events"] > 0 and
-                                   image_kind in {"wikimedia_public_domain", "owner_provided"})
+                                   image_kind in {"wikimedia_public_domain", "wikimedia_cc_by", "owner_provided"})
         }
         # Do not label an ordinary extracted frame as context photography.
         target.with_suffix(".qa.json").write_text(

@@ -95,6 +95,7 @@ inner = Starlette(
         Route("/api/console/feed", dashboard.feed, methods=["GET"]),
         Route("/api/console/media/{clip_id}", dashboard.media, methods=["GET"]),
         Route("/api/console/links", dashboard.add_links, methods=["POST"]),
+        Route("/api/console/upload-ready", dashboard.upload_ready, methods=["POST"]),
         Route("/api/console/sources", dashboard.sources, methods=["GET"]),
         Route("/api/console/review", dashboard.review, methods=["POST"]),
         Route("/internal/approved-demo", demo_ingest.receive_demo, methods=["POST", "GET"]),

@@ -162,8 +162,12 @@ def read_connection() -> dict:
     try:
         blob = vault_path().read_bytes()
         data = json.loads(_cipher().decrypt(blob))
-        if data.get("channel_id") != _config()["YOUTUBE_EXPECTED_CHANNEL_ID"]:
+        conf = _config()
+        if data.get("channel_id") != conf["YOUTUBE_EXPECTED_CHANNEL_ID"]:
             raise RuntimeError("O canal armazenado não corresponde ao canal autorizado")
+        # Rotate Google Client Secret via Railway without invalidating the
+        # encrypted refresh token or requiring another Google consent screen.
+        data["credentials"]["client_secret"] = conf["GOOGLE_CLIENT_SECRET"]
         return data
     except FileNotFoundError:
         raise RuntimeError("YouTube não conectado; abra a página de autorização") from None

@@ -127,3 +127,18 @@ def test_youtube_strategy_selection_rejects_unknown_player(tmp_path,monkeypatch)
     from autoclips.media import _youtube_options
     with pytest.raises(ValueError):
         _youtube_options(tmp_path,"arbitrary-client",None)
+
+
+def test_private_optional_proxy_is_given_only_to_ytdlp(tmp_path,monkeypatch):
+    from autoclips.media import _youtube_options
+    monkeypatch.setenv("AUTOCLIPS_YOUTUBE_PROXY","socks5h://access:secret@example.net:1080")
+    opts=_youtube_options(tmp_path,"mweb",None)
+    assert opts["proxy"].startswith("socks5h://")
+    assert opts["quiet"] is True
+
+
+def test_reject_malformed_proxy(tmp_path,monkeypatch):
+    from autoclips.media import _youtube_options
+    monkeypatch.setenv("AUTOCLIPS_YOUTUBE_PROXY","file:///etc/passwd")
+    with pytest.raises(RuntimeError):
+        _youtube_options(tmp_path,"mweb",None)

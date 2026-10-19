@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml README.md ./
 COPY autoclips ./autoclips
-COPY server.py cloud_server.py ./
+COPY server.py cloud_server.py dashboard.html ./
 RUN pip install --no-cache-dir ".[youtube-import]" && node --version && python -c "import yt_dlp; print(yt_dlp.version.__version__)"
 RUN mkdir -p /data && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin autoclips && chown -R autoclips:autoclips /data
 COPY docker-entrypoint.sh /usr/local/bin/autoclips-entrypoint.sh

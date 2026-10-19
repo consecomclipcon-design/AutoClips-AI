@@ -100,6 +100,50 @@ def _db_init():
             else:
                 print("AUTOCLIPS_PRIVATE_VALIDATION_URL_INVALID", flush=True)
 
+        c.execute("""CREATE TABLE IF NOT EXISTS chat_ingest_permissions(
+              source_id TEXT PRIMARY KEY,
+              original_video_id TEXT NOT NULL,
+              private_publish_approved INTEGER NOT NULL DEFAULT 0,
+              rights_confirmed INTEGER NOT NULL DEFAULT 0
+        )""")
+        # Connected ChatGPT agents can submit a single signed media URL via the
+        # OAuth-protected Railway variable tool, without touching older batches.
+        # Existing source/approval records are never overwritten by a new job.
+        raw_chat = os.getenv("AUTOCLIPS_AGENT_CHAT_IMPORT", "")
+        if raw_chat:
+            try:
+                entry = json.loads(raw_chat)
+                video_id = entry.get("video_id", "")
+                url = entry.get("media_url", "")
+                title = entry.get("title", "")
+                source_url = entry.get("youtube_url", "")
+                parsed = urlparse(url)
+                if (not isinstance(entry, dict) or
+                        not isinstance(video_id, str) or
+                        not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id) or
+                        not isinstance(url, str) or len(url) > 2048 or
+                        parsed.scheme != "https" or
+                        parsed.hostname != "storage.googleapis.com" or
+                        not parsed.path.endswith(".mp4") or
+                        parsed.username or parsed.password or
+                        not isinstance(title, str) or not 1 <= len(title) <= 160 or
+                        source_url != "https://www.youtube.com/watch?v=" + video_id):
+                    raise ValueError("invalid_chat_media")
+                sid = "src_chat_" + video_id.replace("-", "_")
+                c.execute("""INSERT OR IGNORE INTO dashboard_sources
+                    (id,link,source_kind,status,created_at,updated_at,
+                     title,original_video_id)
+                    VALUES (?,?,'hosted','queued',?,?,?,?)""",
+                    (sid,url,db.now(),db.now(),title,video_id))
+                c.execute("""INSERT OR IGNORE INTO chat_ingest_permissions
+                    (source_id,original_video_id,private_publish_approved,rights_confirmed)
+                    VALUES (?,?,?,?)""",
+                    (sid,video_id,
+                     int(entry.get("private_publish_approved") is True),
+                     int(entry.get("rights_confirmed") is True)))
+            except (ValueError, TypeError, KeyError, AttributeError):
+                print("AUTOCLIPS_CHAT_MEDIA_INVALID",flush=True)
+
         # The signed media URLs are supplied only as PRIVATE Railway variables.
         # Never log them, put them in Git, or expose in a UI response.
         raw_batch = os.getenv("AUTOCLIPS_VIDIQ_REVIEW_BATCH", "")
@@ -512,6 +556,40 @@ def _queue_one_nasa_private_validation():
         print("AUTOCLIPS_NASA_PRIVATE_TEST_DEFERRED", type(exc).__name__, flush=True)
 
 
+def _queue_one_approved_chat_source():
+    """One private upload per explicitly rights-cleared chat source, never public."""
+    with db.conn() as c:
+        rows = c.execute("""SELECT s.id,s.project_id,s.title,p.original_video_id
+            FROM dashboard_sources s
+            JOIN chat_ingest_permissions p ON s.id=p.source_id
+            WHERE s.status='awaiting_review'
+              AND p.private_publish_approved=1 AND p.rights_confirmed=1
+              AND NOT EXISTS(
+                SELECT 1 FROM dashboard_publishes q JOIN clips k
+                ON q.clip_id=k.id WHERE k.project_id=s.project_id)
+            ORDER BY s.created_at LIMIT 1""").fetchall()
+        if not rows:
+            return
+        row = rows[0]
+        clip = c.execute("""SELECT id FROM clips
+            WHERE project_id=? AND status='ready' AND path IS NOT NULL
+            ORDER BY created ASC LIMIT 1""", (row["project_id"],)).fetchone()
+    if not clip:
+        return
+    try:
+        result = enqueue_publication(
+            clip["id"],
+            title=(row["title"][:78] + " #Shorts")[:100],
+            description=("AutoClips AI - edição de vídeo com direitos "
+                         "de uso confirmados pelo responsável. "
+                         "Fonte: https://www.youtube.com/watch?v=" +
+                         row["original_video_id"] + " #Shorts"),
+            explicitly_approved=True,privacy="private")
+        print("AUTOCLIPS_CHAT_PRIVATE_TEST_QUEUED",result["clip_id"],flush=True)
+    except Exception as exc:
+        print("AUTOCLIPS_CHAT_PRIVATE_TEST_DEFERRED",type(exc).__name__,flush=True)
+
+
 def _tick():
     _db_init()
     # Start at most one source import at a time; the CPU only has two render workers.
@@ -603,6 +681,7 @@ def _tick():
                      SELECT 1 FROM dashboard_renders r
                      WHERE r.source_id=dashboard_sources.id AND r.status='queued')""",(db.now(),))
     _queue_one_nasa_private_validation()
+    _queue_one_approved_chat_source()
     publish_next()
 
 

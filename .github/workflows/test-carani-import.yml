@@ -1,9 +1,6 @@
 name: AutoClips Real Cariani End-to-End
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/test-carani-import.yml'
 permissions:
   contents: read
 jobs:
@@ -25,10 +22,12 @@ jobs:
       - name: Fetch authorized full original into AutoClips
         env:
           AUTOCLIPS_HOME: ${{ runner.temp }}/autoclips
+          AUTOCLIPS_SOURCE_URL: ${{ secrets.AUTOCLIPS_DEMO_SOURCE_URL }}
         run: |
           python - <<'PY'
           from autoclips.media import import_hosted_approved, probe
-          url = 'https://storage.googleapis.com/vidiq-user-videos/b9b2433f-4bec-44bb-987a-d2e3714a7d6f/7a27afca-10e7-458a-94e8-411a33864c5d.mp4?GoogleAccessId=ai-proxy-20261001%40studious-pen-429.vid.io.iam.gserviceaccount.com&Expires=1793017579&Signature=pHvHOPQJlntu8CP4Qyf%2F2RPH%2FDkuNZbU0ERGbdQdn%2BLkZDe9YyBkwgaLJmwvXdkdlOksOkbw6hd%2FpP5UxjC6NIjOB03jK7%2FCYPdimskZXX4muWtgRXLoRc%2Fbqc0b6MtaUB59E25eZcc5GBmri5INzFWaUq1cmDU412Nd3IliKZCT4Q%2FPdFhnbBXLRPzirAVXX6RbIIzQ31S8lO6Gkyx4ypBxXmVC0gxDEgR0iEvcQdoa6lWcBfoT4pvu9FX8ASbn1US40hVhJa029Tp06my4IjcoL5FbYAWCzUW0StXiwJ028PTVXX%2FXU3rSr2Ow3Wg07GZnvmjFqtf3t8sJZEfzNw%3D%3D'
+          import os
+          url = os.environ['AUTOCLIPS_SOURCE_URL']
           file = import_hosted_approved(url, 'cariani_2026', True)
           info = probe(file)
           print('AUTOCLIPS_DOWNLOAD_SUCCESS', file.stat().st_size, info)

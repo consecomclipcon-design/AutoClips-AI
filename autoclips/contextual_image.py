@@ -84,7 +84,7 @@ def fetch_public_domain_image(title: str, destination: Path) -> dict | None:
     opener = build_opener(NoRedirect())
     params = {
         "action": "query", "format": "json", "generator": "search",
-        "gsrsearch": " ".join(terms[:4]), "gsrnamespace": "6", "gsrlimit": "20",
+        "gsrsearch": " ".join(terms[:2]), "gsrnamespace": "6", "gsrlimit": "20",
         "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": "1080"
     }
     try:

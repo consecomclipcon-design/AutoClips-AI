@@ -18,6 +18,7 @@ from .youtube import channel, upload, validate_schedule
 # Motor de tarefas local: permanece ativo apenas enquanto o processo estiver aberto.
 POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="autoclips")
 INIT_LOCK = threading.Lock()
+RESTORE_LOCK = threading.Lock()
 INITIALIZED = set()
 
 
@@ -157,6 +158,16 @@ def start_render(project_id: str, start: float, end: float, style: str = "viral"
     return {"clip_id": clip_id, "job_id": job_id, "status": "queued"}
 
 
+def _media_for_render(project: dict) -> str:
+    """Reload a checksummed source from private S3 only when needed for an edit."""
+    source = Path(project["media"])
+    if source.is_file():
+        return str(source)
+    from .source_archive import restore_source
+    with RESTORE_LOCK:
+        return str(restore_source(project["id"], source))
+
+
 def _render(clip_id: str) -> dict:
     clip = db.one("clips", clip_id)
     project = db.one("projects", clip["project_id"])
@@ -164,7 +175,7 @@ def _render(clip_id: str) -> dict:
     try:
         transcript = load_transcript(project["transcript"])
         export = home() / "exports" / f"{clip_id}.mp4"
-        result = render(project["media"], transcript["words"], clip["start"], clip["end"], export, clip["style"])
+        result = render(_media_for_render(project), transcript["words"], clip["start"], clip["end"], export, clip["style"])
         db.update("clips", clip_id, path=str(export), status="ready")
         return {"clip_id": clip_id, **result}
     except Exception as exc:
@@ -225,7 +236,7 @@ def _render_split(clip_id: str, image_file: str | None, focal_x: float,
     try:
         transcript = load_transcript(project["transcript"])
         target = home() / "exports" / f"{clip_id}.mp4"
-        outcome = render_split(source=project["media"],image=image_file,
+        outcome = render_split(source=_media_for_render(project),image=image_file,
                                words=transcript["words"],start=clip["start"],end=clip["end"],
                                output=target,focal_x=focal_x,size=(1080,1920),
                                hook_white=hook_white or None,hook_red=hook_red or None)

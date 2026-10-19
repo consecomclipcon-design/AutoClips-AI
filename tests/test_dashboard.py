@@ -145,6 +145,42 @@ def test_login_ui_api_route_contract_and_existing_tab_compatibility(working):
         assert c.get("/api/console/session").json() == {"loggedIn":True}
 
 
+def test_approved_vidiq_manifest_queues_only_review_sources(working,monkeypatch):
+    import json
+    manifest=[{
+       "video_id":"a036QoSqS4w",
+       "title":"Cariani — história emocionante",
+       "media_url":"https://storage.googleapis.com/vidiq-user-videos/testing/clip.mp4?Expires=1"
+    }]
+    monkeypatch.setenv("AUTOCLIPS_VIDIQ_REVIEW_BATCH",json.dumps(manifest))
+    dashboard._db_init()
+    dashboard._db_init()
+    with db.conn() as c:
+        rows=c.execute("SELECT id,source_kind,status,title FROM dashboard_sources WHERE original_video_id=?",
+                       ("a036QoSqS4w",)).fetchall()
+        assert len(rows)==1
+        assert rows[0]["source_kind"]=="hosted"
+        assert rows[0]["status"]=="queued"
+        assert rows[0]["title"]=="Cariani — história emocionante"
+        assert c.execute("SELECT count(*) FROM dashboard_publishes").fetchone()[0]==0
+
+
+def test_like_cannot_publish_without_separate_rights_confirmation(working):
+    import json
+    clip=add_clip(working,989)
+    app=Starlette(routes=[
+        Route("/auth/login",dashboard.login,methods=["POST"]),
+        Route("/api/console/review",dashboard.review,methods=["POST"])
+    ])
+    with TestClient(app,base_url="https://autoclips-worker-production.up.railway.app") as c:
+        c.post("/auth/login",json={"password":"test-owner-password-is-secure"})
+        response=c.post("/api/console/review",json={"clip_id":clip,"decision":"like"},
+                        headers={"X-Autoclips-Action":"1"})
+        assert response.status_code==403
+    with db.conn() as con:
+        assert con.execute("SELECT count(*) FROM dashboard_publishes WHERE clip_id=?",(clip,)).fetchone()[0]==0
+
+
 def test_source_authorization_required(working):
     app=Starlette(routes=[Route("/auth/login",dashboard.login,methods=["POST"]),
                            Route("/api/console/links",dashboard.add_links,methods=["POST"])])

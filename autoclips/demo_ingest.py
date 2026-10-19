@@ -65,6 +65,11 @@ async def receive_demo(request):
 
     pipeline.init()
     existing = _existing_demo()
+    if request.method == "GET":
+        from .publish_queue import get_publication
+        return JSONResponse({"clip": existing, "publication":
+                             get_publication("clip_cariani_demo80") if existing else None},
+                            headers={"cache-control": "no-store"})
     if existing:
         return JSONResponse({"state": "already_imported", **existing})
     if request.headers.get("content-length"):

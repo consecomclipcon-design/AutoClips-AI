@@ -319,6 +319,8 @@ async def review(request):
                 c.execute("""UPDATE dashboard_publishes SET status='cancelled'
                              WHERE clip_id=? AND status='queued'""", (clip_id,))
         if decision=="like":
+            if data.get("rights_confirmed") is not True:
+                return _answer({"error": "Confirme os direitos de uso antes de publicar este corte."}, 403)
             title=(data.get("title") or (existing["name"] + " #Shorts"))[:100]
             description=(data.get("description") or ("Corte de " + existing["name"] + ". #Shorts"))[:5000]
             result=enqueue_publication(clip_id,title=title,description=description,explicitly_approved=True)

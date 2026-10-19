@@ -34,11 +34,15 @@ def create_tables() -> None:
             started_at TEXT,
             completed_at TEXT,
             youtube_url TEXT,
-            error TEXT
+            error TEXT,
+            privacy TEXT NOT NULL DEFAULT 'private'
           );
           CREATE INDEX IF NOT EXISTS dashboard_publishes_day
             ON dashboard_publishes(publication_day,status);
         """)
+        columns = {row["name"] for row in c.execute("PRAGMA table_info(dashboard_publishes)")}
+        if "privacy" not in columns:
+            c.execute("ALTER TABLE dashboard_publishes ADD COLUMN privacy TEXT NOT NULL DEFAULT 'private'")
 
 
 def get_publication(clip_id: str) -> dict | None:
@@ -61,7 +65,9 @@ def daily_status() -> dict:
 
 
 def enqueue_publication(clip_id: str, *, title: str, description: str,
-                        explicitly_approved: bool = False) -> dict:
+                        explicitly_approved: bool = False, privacy: str = "private") -> dict:
+    if privacy != "private":
+        raise PermissionError("Este fluxo de testes permite apenas publicação privada")
     if not explicitly_approved:
         raise PermissionError("Publicação exige curtir/aprovar o vídeo expressamente")
     if not 1 <= len(title.strip()) <= 100 or len(description) > 5000:
@@ -79,10 +85,10 @@ def enqueue_publication(clip_id: str, *, title: str, description: str,
         if row:
             return {"clip_id": clip_id, "status": row["status"], "url": row["youtube_url"]}
         c.execute("""INSERT INTO dashboard_publishes
-                      (clip_id,title,description,status,requested_at)
-                      VALUES (?,?,?,'queued',?)""",
-                  (clip_id, title.strip(), description, db.now()))
-    return {"clip_id": clip_id, "status": "queued", "privacy": "public",
+                      (clip_id,title,description,status,requested_at,privacy)
+                      VALUES (?,?,?,'queued',?,?)""",
+                  (clip_id, title.strip(), description, db.now(), privacy))
+    return {"clip_id": clip_id, "status": "queued", "privacy": privacy,
             "quota": daily_status()}
 
 
@@ -121,7 +127,7 @@ def publish_next() -> dict | None:
         else:
             channel_id = channel()["id"]
             url = upload(clip["path"], queued["title"], queued["description"],
-                         "public", False, channel_id, None)
+                         queued["privacy"], False, channel_id, None)
             db.update("clips", clip["id"], uploaded_url=url)
         with db.conn() as c:
             c.execute("""UPDATE dashboard_publishes SET status='published',

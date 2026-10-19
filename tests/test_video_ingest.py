@@ -82,3 +82,48 @@ def test_import_moves_uploaded_media_instead_of_duplicate_on_volume(tmp_path, mo
     assert saved.exists()
     assert saved.read_bytes()==b'actual-mp4-placeholder'
     assert not file.exists()
+
+
+def test_youtube_large_source_chooses_small_format_without_manual_upload(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCLIPS_HOME", str(tmp_path))
+    monkeypatch.setenv("ALLOW_YOUTUBE_IMPORT", "true")
+    monkeypatch.setenv("AUTOCLIPS_POT_PROVIDER_URL", "http://autoclips-pot-provider.railway.internal:4416")
+    calls = []
+
+    class FakeDL:
+        def __init__(self,options):
+            self.params=options
+            calls.append((options["extractor_args"]["youtube"]["player_client"][0],options))
+        def __enter__(self): return self
+        def __exit__(self,*a): pass
+        def extract_info(self,*a,**kw):
+            if self.params["extractor_args"]["youtube"]["player_client"]==["mweb"]:
+                raise RuntimeError("Sign in to confirm you're not a bot")
+            return {"duration":90*60,"_type":"video","filesize":1006*1024*1024,
+                    "formats":[{"format_id":"18","filesize_approx":120*1024*1024,
+                                "height":360}]}
+        def download(self, urls):
+            out = Path(self.params["outtmpl"].replace("%(ext)s", "mp4"))
+            out.write_bytes(b"small_enough_progressive_video")
+            return 0
+
+    monkeypatch.setitem(sys.modules,"yt_dlp",types.SimpleNamespace(YoutubeDL=FakeDL))
+    output=import_youtube_approved("https://youtu.be/NmjiNtvSkFk","p_long_01",True)
+    assert output.exists()
+    assert [n for n,_ in calls]==["mweb","tv"]
+    assert "height<=?360" in calls[-1][1]["format"]
+    assert calls[0][1]["extractor_args"]["youtubepot-bgutilhttp"]["base_url"]==[
+        "http://autoclips-pot-provider.railway.internal:4416"]
+
+
+def test_youtube_provider_rejects_untrusted_address(tmp_path,monkeypatch):
+    monkeypatch.setenv("AUTOCLIPS_POT_PROVIDER_URL","http://127.0.0.1:4416")
+    from autoclips.media import _safe_pot_provider
+    with pytest.raises(RuntimeError):
+        _safe_pot_provider()
+
+
+def test_youtube_strategy_selection_rejects_unknown_player(tmp_path,monkeypatch):
+    from autoclips.media import _youtube_options
+    with pytest.raises(ValueError):
+        _youtube_options(tmp_path,"arbitrary-client",None)

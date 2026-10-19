@@ -108,7 +108,17 @@ def _youtube_options(temp_dir: Path, player_client: str, provider: str | None,
         if isinstance(downloaded, (int, float)) and downloaded > MAX_SOURCE_BYTES:
             raise ValueError("O vídeo excedeu 180 MB; seleção automática de tamanho falhou")
 
-    return {
+    # Optional managed network egress, injected as a PRIVATE Railway variable.
+    # No proxy account or secret is ever stored in this source code.
+    proxy_url = os.getenv("AUTOCLIPS_YOUTUBE_PROXY", "").strip()
+    if proxy_url:
+        from urllib.parse import urlsplit
+        parsed = urlsplit(proxy_url)
+        if (parsed.scheme not in {"http", "https", "socks5", "socks5h"}
+                or not parsed.hostname or not parsed.port
+                or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+            raise RuntimeError("Proxy de mídia mal configurado no Railway")
+    options = {
         "outtmpl": str(temp_dir / "source.%(ext)s"),
         "format": _source_format(duration),
         "merge_output_format": "mp4",
@@ -129,6 +139,9 @@ def _youtube_options(temp_dir: Path, player_client: str, provider: str | None,
         "restrictfilenames": True,
         "windowsfilenames": True,
     }
+    if proxy_url:
+        options["proxy"] = proxy_url
+    return options
 
 
 def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -> Path:

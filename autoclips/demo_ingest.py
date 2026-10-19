@@ -71,7 +71,16 @@ async def receive_demo(request):
                              get_publication("clip_cariani_demo80") if existing else None},
                             headers={"cache-control": "no-store"})
     if existing:
-        return JSONResponse({"state": "already_imported", **existing})
+        # A manual upload of the exact approved bytes may have happened first.
+        # Reuse its immutable clip ID and public queue; never post duplicates.
+        from .publish_queue import get_publication, enqueue_publication
+        publication = get_publication("clip_cariani_demo80")
+        if not publication and existing["status"] == "ready" and not existing["uploaded_url"]:
+            publication = enqueue_publication("clip_cariani_demo80", title=DEMO_NAME,
+                                               description=DEMO_DESCRIPTION,
+                                               explicitly_approved=True)
+        return JSONResponse({"state": "already_imported", **existing,
+                             "publication": publication})
     if request.headers.get("content-length"):
         try:
             if int(request.headers["content-length"]) != DEMO_SIZE:

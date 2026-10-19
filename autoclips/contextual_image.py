@@ -161,5 +161,7 @@ def fetch_public_domain_image(title: str, destination: Path) -> dict | None:
                             else "wikimedia_public_domain"}
         finally:
             temp.unlink(missing_ok=True)
-    except (ValueError, OSError, TimeoutError, KeyError, TypeError, json.JSONDecodeError):
+    except (ValueError, OSError, TimeoutError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        # Diagnostics contain only the failure type, never a signed media URL.
+        print("AUTOCLIPS_LICENSED_CONTEXT_PHOTO_FAILED",type(exc).__name__,flush=True)
         return None

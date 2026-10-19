@@ -56,18 +56,6 @@ def _db_init():
           created_at TEXT NOT NULL, remake_clip_id TEXT
         );
         """)
-        # Resume a vidIQ import interrupted by the model-cache migration.
-        # Do not requeue successful jobs or continuously retry failed media.
-        r = c.execute("""UPDATE dashboard_sources SET status='queued',
-                         job_id=NULL,project_id=NULL,error=NULL,
-                         retry_revision='vidiq-cache-v1',updated_at=?
-                         WHERE source_kind='hosted' AND status='failed'
-                         AND retry_revision<>'vidiq-cache-v1'
-                         AND (lower(coalesce(error,'')) LIKE '%permission denied%'
-                           OR lower(coalesce(error,'')) LIKE '%interrupted%'
-                           OR lower(coalesce(error,'')) LIKE '%reiniciado%')""",(db.now(),))
-        if r.rowcount:
-            print("AUTOCLIPS_VIDIQ_CACHE_RECOVERY_ENQUEUED",r.rowcount,flush=True)
         # Retry a bot-blocked link once for each materially new download
         # strategy. Normal UI reads and process restarts never burn retries.
         retry_revision = "dualstack-pot-v1"
@@ -80,6 +68,19 @@ def _db_init():
             c.execute("ALTER TABLE dashboard_sources ADD COLUMN title TEXT")
         if "original_video_id" not in columns:
             c.execute("ALTER TABLE dashboard_sources ADD COLUMN original_video_id TEXT")
+        # Resume a vidIQ import interrupted by the model-cache migration.
+        # Do not requeue successful jobs or continuously retry failed media.
+        r = c.execute("""UPDATE dashboard_sources SET status='queued',
+                         job_id=NULL,project_id=NULL,error=NULL,
+                         retry_revision='vidiq-cache-v1',updated_at=?
+                         WHERE source_kind='hosted' AND status='failed'
+                         AND retry_revision<>'vidiq-cache-v1'
+                         AND (lower(coalesce(error,'')) LIKE '%permission denied%'
+                           OR lower(coalesce(error,'')) LIKE '%interrupted%'
+                           OR lower(coalesce(error,'')) LIKE '%reiniciado%')""",(db.now(),))
+        if r.rowcount:
+            print("AUTOCLIPS_VIDIQ_CACHE_RECOVERY_ENQUEUED",r.rowcount,flush=True)
+
         # The signed media URLs are supplied only as PRIVATE Railway variables.
         # Never log them, put them in Git, or expose in a UI response.
         raw_batch = os.getenv("AUTOCLIPS_VIDIQ_REVIEW_BATCH", "")

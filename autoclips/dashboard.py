@@ -357,10 +357,16 @@ def _tick():
         try:
             job=pipeline.job_status(row["job_id"])
             if job["status"] in {"failed","interrupted"}:
+                original_error = str(job.get("error") or "import_failed")
+                if ("not a bot" in original_error.lower() or
+                    "sign in to confirm" in original_error.lower()):
+                    original_error = ("O YouTube bloqueou o download no servidor. "
+                                      "Envie um MP4 de origem autorizado, comprimido "
+                                      "para no máximo 180 MB, usando 'Enviar vídeo original'.")
                 with db.conn() as c:
                     c.execute("""UPDATE dashboard_sources SET status='failed',error=?,
                                  updated_at=? WHERE id=?""",
-                              (str(job.get("error") or "import_failed")[:450],db.now(),row["id"]))
+                              (original_error[:450],db.now(),row["id"]))
             elif job["status"]=="completed":
                 project=pipeline.db.one("projects",row["project_id"])
                 if not project.get("transcript"):
@@ -483,3 +489,61 @@ async def upload_ready(request):
         return _answer({"error":"upload_failed","type":type(exc).__name__},500)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+async def upload_source(request):
+    """Upload compressed original footage (not pre-edited) and queue actual AutoClips cuts."""
+    err = _auth(request, write=True)
+    if err: return err
+    if request.headers.get("content-type", "").split(";",1)[0] not in ("video/mp4", "application/octet-stream"):
+        return _answer({"error": "mp4_required"}, 415)
+    try:
+        declared_size = int(request.headers.get("content-length", "-1"))
+    except ValueError:
+        return _answer({"error": "invalid_file_size"}, 400)
+    max_bytes = 180 * 1024 * 1024
+    if not 1024 <= declared_size <= max_bytes:
+        return _answer({"error": "video_source_must_be_under_180_mb"}, 413)
+    _db_init()
+    with db.conn() as conn:
+        active = conn.execute("""SELECT count(*) FROM dashboard_sources
+                                 WHERE status IN ('queued','importing','rendering')""").fetchone()[0]
+        if active >= 60:
+            return _answer({"error": "source_queue_full"}, 429)
+
+    sid = db.newid("src")
+    filename = sid + "_original.mp4"
+    file_path = home() / "imports" / filename
+    tmp = file_path.with_suffix(".part")
+    count = 0
+    try:
+        with tmp.open("wb") as fd:
+            async for chunk in request.stream():
+                count += len(chunk)
+                if count > max_bytes:
+                    return _answer({"error": "source_too_large"}, 413)
+                fd.write(chunk)
+        if count != declared_size:
+            return _answer({"error": "incomplete_video_upload"}, 422)
+        os.replace(tmp, file_path)
+        from .media import probe
+        metadata = probe(file_path)
+        if not 10 <= float(metadata.get("duration") or 0) <= 60*60*4:
+            return _answer({"error": "unsupported_video_duration"}, 422)
+        with db.conn() as conn:
+            conn.execute("""INSERT INTO dashboard_sources
+                            (id,link,source_kind,status,created_at,updated_at)
+                            VALUES (?,?,'file','queued',?,?)""",
+                         (sid,filename,db.now(),db.now()))
+        return _answer({"id":sid,"status":"queued","duration":metadata["duration"],
+                        "size_bytes":count,"next":"transcription_and_clips"},201)
+    except Exception as exc:
+        print("DASHBOARD_SOURCE_UPLOAD_ERROR",type(exc).__name__,flush=True)
+        return _answer({"error": "source_upload_failed","type":type(exc).__name__},500)
+    finally:
+        tmp.unlink(missing_ok=True)
+        # Delete invalid files, retain only uploads that have an accepted queue row.
+        with db.conn() as conn:
+            accepted = conn.execute("SELECT 1 FROM dashboard_sources WHERE id=?", (sid,)).fetchone()
+        if not accepted:
+            file_path.unlink(missing_ok=True)

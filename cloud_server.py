@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from autoclips.cloud_auth import BearerGate
+from autoclips.upload_http import upload_media
 from server import mcp
 
 
@@ -32,6 +33,7 @@ async def lifespan(app):
 inner = Starlette(
     routes=[
         Route("/health", health, methods=["GET"]),
+        Route("/api/uploads", upload_media, methods=["PUT"]),
         Mount("/", app=mcp.streamable_http_app(
             host="0.0.0.0", json_response=True, stateless_http=True,
         )),

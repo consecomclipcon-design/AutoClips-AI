@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-youtube-import = ["yt-dlp>=2025.1"]
+youtube-import = ["yt-dlp[default]>=2026.1,<2027"]
 test = ["pytest>=8"]
 
 [tool.setuptools.packages.find]

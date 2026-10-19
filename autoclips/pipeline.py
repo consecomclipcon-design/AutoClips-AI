@@ -6,7 +6,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from . import database as db
-from .media import import_local, import_youtube_approved, is_youtube_link, probe
+from .media import import_local, import_youtube_approved, import_hosted_approved, is_youtube_link, probe
 from .ranking import suggest
 from .renderer import render
 from .split_renderer import render_split, validate_window, clamp_focal
@@ -52,16 +52,16 @@ def new_project(source: str, source_kind: str = "file", authorized: bool = False
                 auto_transcribe: bool = True) -> dict:
     """Cria projeto e importa, opcionalmente transcreve. Não posta nada."""
     init()
-    if source_kind not in {"file", "youtube"}:
-        raise ValueError("source_kind deve ser file ou youtube")
+    if source_kind not in {"file", "youtube", "hosted"}:
+        raise ValueError("source_kind deve ser file, youtube ou hosted")
     if source_kind == "youtube" and not is_youtube_link(source):
         raise ValueError("URL do YouTube inválida")
-    if source_kind == "youtube" and not authorized:
-        raise PermissionError("Confirme direitos sobre o vídeo e permissão prévia de download da plataforma")
+    if source_kind in {"youtube", "hosted"} and not authorized:
+        raise PermissionError("Confirme direitos e autorização de importação do vídeo")
     id_ = db.newid("prj")
     with db.conn() as c:
         c.execute("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?)",
-                  (id_, source_kind, source, Path(source).name if source_kind == "file" else "Vídeo YouTube",
+                  (id_, source_kind, source, Path(source).name if source_kind == "file" else "Vídeo autorizado",
                    None, None, None, "queued", None, db.now()))
     job = _submit("ingest", id_, _ingest, id_, source, source_kind, authorized, auto_transcribe)
     return {"project_id": id_, "job_id": job, "status": "queued"}
@@ -70,7 +70,9 @@ def new_project(source: str, source_kind: str = "file", authorized: bool = False
 def _ingest(id_: str, source: str, source_kind: str, authorized: bool, auto_transcribe: bool) -> dict:
     db.update("projects", id_, status="importing")
     try:
-        media = import_local(source, id_) if source_kind == "file" else import_youtube_approved(source, id_, authorized)
+        media = (import_local(source, id_) if source_kind == "file"
+                 else import_hosted_approved(source, id_, authorized) if source_kind == "hosted"
+                 else import_youtube_approved(source, id_, authorized))
         info = probe(media)
         db.update("projects", id_, media=str(media), duration=info["duration"], status="imported")
         if not auto_transcribe:

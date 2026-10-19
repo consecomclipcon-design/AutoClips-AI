@@ -518,10 +518,55 @@ def _prune_failed_hosted_imports() -> int:
     return released
 
 
+def _archive_reviewed_sources() -> int:
+    """Free working disk without losing source media or reviewable clips.
+
+    Archive only finished sources whose every clip was rendered successfully.
+    The private S3 object is checksummed and HEAD-verified before local removal.
+    """
+    from . import source_archive
+    import shutil
+
+    if not source_archive.configured():
+        return 0
+    free = shutil.disk_usage(home()).free
+    if free >= 240 * 1024 * 1024:
+        return 0
+    with db.conn() as c:
+        candidates = c.execute("""SELECT p.id,p.media FROM projects p
+            JOIN dashboard_sources s ON s.project_id=p.id
+            WHERE s.status='awaiting_review' AND p.media IS NOT NULL
+            AND EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
+                       AND k.status='ready' AND k.path IS NOT NULL)
+            AND NOT EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
+                           AND k.status<>'ready')
+            AND NOT EXISTS(SELECT 1 FROM jobs j WHERE
+                           (j.target_id=p.id OR j.target_id IN (
+                             SELECT k.id FROM clips k WHERE k.project_id=p.id))
+                           AND j.status IN ('queued','running'))
+            ORDER BY s.updated_at ASC""").fetchall()
+    root = (home() / "projects").resolve()
+    released = 0
+    for row in candidates:
+        path = Path(row["media"]).resolve()
+        expected_parent = (root / row["id"]).resolve()
+        if path.parent != expected_parent or expected_parent.parent != root:
+            continue
+        try:
+            released += source_archive.archive_source(row["id"], path)
+        except Exception as exc:
+            print("AUTOCLIPS_SOURCE_ARCHIVE_DEFERRED",
+                  row["id"], type(exc).__name__, flush=True)
+        if shutil.disk_usage(home()).free >= 240 * 1024 * 1024:
+            break
+    return released
+
+
 def _worker():
     while True:
         try:
             _prune_failed_hosted_imports()
+            _archive_reviewed_sources()
             _tick()
         except Exception as exc:
             print("AUTOCLIPS_DASHBOARD_WORKER_ERROR",type(exc).__name__,flush=True)

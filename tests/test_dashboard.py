@@ -33,40 +33,29 @@ def add_clip(root, i):
     return clip
 
 
-def test_youtube_bot_failure_requeued_once_without_owner_intervention(working):
-    key="src_automatic_retry_test"
+def test_youtube_bot_failure_retry_once_for_new_strategy(working):
+    source_id="src_automatic_retry_test"
     with db.conn() as c:
         c.execute("""INSERT INTO dashboard_sources
                      (id,link,source_kind,status,error,created_at,updated_at)
                      VALUES (?,?,'youtube','failed',?,?,?)""",
-                 (key,"https://www.youtube.com/watch?v=NmjiNtvSkFk",
-                  "ERROR: Sign in to confirm you're not a bot",db.now(),db.now()))
+                  (source_id,"https://www.youtube.com/watch?v=NmjiNtvSkFk",
+                   "ERROR: Sign in to confirm you're not a bot",db.now(),db.now()))
     dashboard._db_init()
     with db.conn() as c:
-        row=c.execute("SELECT status,auto_retry_count FROM dashboard_sources WHERE id=?",(key,)).fetchone()
-    assert row["status"]=="queued"
-    assert row["auto_retry_count"]==1
+        row=c.execute("SELECT status,auto_retry_count,retry_revision FROM dashboard_sources WHERE id=?",
+                      (source_id,)).fetchone()
+        assert row["status"]=="queued"
+        assert row["auto_retry_count"]==1
+        assert row["retry_revision"]=="dualstack-pot-v1"
+        c.execute("UPDATE dashboard_sources SET status='failed', error=? WHERE id=?",
+                  ("Download do YouTube bloqueado",source_id))
+    for _ in range(5):
+        dashboard._db_init()  # frequent UI polling must NOT trigger retries
     with db.conn() as c:
-        c.execute("UPDATE dashboard_sources SET status='failed', error='Sign in to confirm not a bot' WHERE id=?",(key,))
-    dashboard._db_init()
-    with db.conn() as c:
-        row=c.execute("SELECT status,auto_retry_count FROM dashboard_sources WHERE id=?",(key,)).fetchone()
-    assert row["status"]=="queued"
-    assert row["auto_retry_count"]==2
-    with db.conn() as c:
-        c.execute("UPDATE dashboard_sources SET status='failed', error='Sign in to confirm not a bot' WHERE id=?",(key,))
-    dashboard._db_init()
-    with db.conn() as c:
-        row=c.execute("SELECT status,auto_retry_count FROM dashboard_sources WHERE id=?",(key,)).fetchone()
-    assert row["status"]=="queued"
-    assert row["auto_retry_count"]==3
-    with db.conn() as c:
-        c.execute("UPDATE dashboard_sources SET status='failed', error='Sign in to confirm not a bot' WHERE id=?",(key,))
-    dashboard._db_init()
-    with db.conn() as c:
-        row=c.execute("SELECT status,auto_retry_count FROM dashboard_sources WHERE id=?",(key,)).fetchone()
+        row=c.execute("SELECT status,auto_retry_count FROM dashboard_sources WHERE id=?",(source_id,)).fetchone()
     assert row["status"]=="failed"
-    assert row["auto_retry_count"]==3
+    assert row["auto_retry_count"]==1
 
 
 def test_public_approval_requires_explicit_consent(working):

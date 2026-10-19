@@ -285,7 +285,33 @@ def import_hosted_approved(url: str, project_id: str, owner_authorized: bool) ->
                 raise ValueError('A origem de vídeo não retornou HTTP 200')
             size = response.headers.get('Content-Length')
             if size and int(size) > MAX_SOURCE_BYTES:
-                raise ValueError('Arquivo maior que limite de tamanho do worker')
+                # vidIQ accepts 299 MB while the 500 MB Railway volume can
+                # store less. Compress the approved private Google-hosted
+                # source directly over HTTPS rather than downloading twice.
+                compressed = folder / "source_compressed.mp4.part"
+                ffmpeg_cmd = ["ffmpeg","-hide_banner","-loglevel","error","-nostdin",
+                              "-y","-i",url,"-vf",
+                              "scale=640:640:force_original_aspect_ratio=decrease",
+                              "-c:v","libx264","-preset","veryfast",
+                              "-b:v","650k","-maxrate","850k","-bufsize","1700k",
+                              "-c:a","aac","-b:a","64k","-ac","2",
+                              "-movflags","+faststart","-f","mp4",str(compressed)]
+                print("AUTOCLIPS_HOSTED_TRANSCODE_STARTED",
+                      project_id,"source_too_large",flush=True)
+                try:
+                    result = subprocess.run(ffmpeg_cmd,stdin=subprocess.DEVNULL,
+                                            stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                                            timeout=1200,check=False)
+                    if result.returncode or not compressed.is_file() or compressed.stat().st_size<1024:
+                        raise ValueError("A compactação do vídeo de origem falhou")
+                    if compressed.stat().st_size > MAX_SOURCE_BYTES:
+                        raise ValueError("A compactação ainda excedeu o espaço permitido")
+                    os.replace(compressed,final)
+                    print("AUTOCLIPS_HOSTED_TRANSCODE_COMPLETED",
+                          project_id,"bytes",final.stat().st_size,flush=True)
+                    return final
+                finally:
+                    compressed.unlink(missing_ok=True)
             mime = response.headers.get('Content-Type', '').split(';', 1)[0].lower()
             if mime not in ('video/mp4', 'application/octet-stream', ''):
                 raise ValueError('A origem não retornou um MP4')

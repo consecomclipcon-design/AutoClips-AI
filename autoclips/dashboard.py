@@ -446,12 +446,25 @@ async def upload_ready(request):
         if length!=size:
             return _answer({"error":"incomplete_upload"},422)
         os.replace(tmp,target)
+        # Deduplicate the specifically approved 80s Cariani original, even if
+        # the private GitHub ingestion workflow executes later. Both routes use
+        # the SAME fixed clip_id and publication record.
+        from .demo_ingest import DEMO_SHA, _existing_demo
+        exact_demo = hashlib.sha256(target.read_bytes()).hexdigest() == DEMO_SHA
+        if exact_demo:
+            existing = _existing_demo()
+            if existing:
+                target.unlink(missing_ok=True)
+                return _answer({"clip_id":existing["id"],"status":existing["status"],
+                                "url":existing["uploaded_url"],"duplicate":True})
         from .media import probe
         info=probe(target)
         if not 1<=float(info["duration"])<=180 or not (info.get("width")>0 and info.get("height")>info.get("width")):
             target.unlink(missing_ok=True)
             return _answer({"error":"requires_vertical_video_up_to_180s"},422)
-        project_id=db.newid("prj")
+        project_id="prj_cariani_demo80" if exact_demo else db.newid("prj")
+        if exact_demo:
+            ident="clip_cariani_demo80"
         with db.conn() as c:
             c.execute("""INSERT INTO projects
                          (id,source_kind,source,name,media,transcript,duration,status,error,created)

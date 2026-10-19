@@ -80,6 +80,17 @@ def test_missing_upload_scope_rejected(setup, monkeypatch):
     assert not oauth_web.vault_path().exists()
 
 
+def test_google_client_secret_rotation_does_not_lose_refresh_token(setup, monkeypatch):
+    state = extract_state(oauth_web.start_authorization())
+    simulate_google(monkeypatch, "UC" + "x" * 22)
+    oauth_web.complete_authorization("code", state)
+    first = oauth_web.read_connection()
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "rotated-google-client-secret-from-railway")
+    second = oauth_web.read_connection()
+    assert first["credentials"]["refresh_token"] == second["credentials"]["refresh_token"]
+    assert second["credentials"]["client_secret"] == "rotated-google-client-secret-from-railway"
+
+
 def test_state_replay_is_rejected_without_google_call(setup, monkeypatch):
     state = extract_state(oauth_web.start_authorization())
     simulate_google(monkeypatch, "UC" + "y" * 22)

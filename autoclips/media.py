@@ -19,7 +19,9 @@ def import_local(filename: str, project_id: str) -> Path:
         raise ValueError("Arquivo não encontrado ou formato inválido (MP4, MOV, MKV, WEBM)")
     destination = home() / "projects" / project_id / ("source" + p.suffix.lower())
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(p, destination)
+    if p.stat().st_size > MAX_SOURCE_BYTES:
+        raise ValueError("Arquivo original ultrapassa limite de 180 MB deste worker")
+    os.replace(p, destination)  # Same mounted volume; avoid doubling disk usage.
     return destination
 
 

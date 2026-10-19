@@ -70,3 +70,15 @@ def test_youtube_url_source_is_only_id_and_https():
     assert is_youtube_link('https://youtu.be/q6OYTqiXmAw')
     assert not is_youtube_link('https://www.youtube.com/redirect?q=https://example.com')
     assert not is_youtube_link('https://youtube.com/watch?v=a#evil')
+
+
+def test_import_moves_uploaded_media_instead_of_duplicate_on_volume(tmp_path, monkeypatch):
+    from autoclips.media import import_local
+    from autoclips.settings import home
+    monkeypatch.setenv('AUTOCLIPS_HOME',str(tmp_path))
+    file=home()/'imports'/'upload_test.mp4'
+    file.write_bytes(b'actual-mp4-placeholder')
+    saved=import_local(file.name,'prj_test_01')
+    assert saved.exists()
+    assert saved.read_bytes()==b'actual-mp4-placeholder'
+    assert not file.exists()

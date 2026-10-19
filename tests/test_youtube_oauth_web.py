@@ -109,8 +109,10 @@ def test_oauth_callbacks_public_but_others_require_bearer(setup):
     async def call(path, method="GET", bearer=False):
         sent = []
         headers = [(b"authorization", ("Bearer " + os.environ["MCP_GATEWAY_TOKEN"]).encode())] if bearer else []
+        async def send(chunk):
+            sent.append(chunk)
         await auth({"type": "http", "path": path, "method": method, "headers": headers},
-                   lambda: None, lambda chunk: sent.append(chunk))
+                   lambda: None, send)
         return sent[0]["status"]
     assert asyncio.run(call("/oauth/youtube/callback")) == 200
     assert asyncio.run(call("/oauth/youtube/start")) == 200

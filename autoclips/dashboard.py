@@ -431,8 +431,14 @@ async def review(request):
         if decision=="like":
             if data.get("rights_confirmed") is not True:
                 return _answer({"error": "Confirme os direitos de uso antes de publicar este corte."}, 403)
+            qa_path=Path(clip.get("path") or "").with_suffix(".qa.json")
+            qa=json.loads(qa_path.read_text(encoding="utf-8")) if qa_path.is_file() else {}
+            if clip["style"]=="split" and not qa.get("auto_publish_ready"):
+                return _answer({"error": "Corte reprovado: português, legenda e foto contextual licenciada são obrigatórios antes de publicar."},422)
             title=(data.get("title") or (existing["name"] + " #Shorts"))[:100]
-            description=(data.get("description") or ("Corte de " + existing["name"] + ". #Shorts"))[:5000]
+            description=(data.get("description") or ("Corte de " + existing["name"] + ". #Shorts"))
+            description += _image_attribution(qa)
+            description=description[:5000]
             result=enqueue_publication(clip_id,title=title,description=description,
                                         explicitly_approved=True,privacy="private")
             return _answer({"result":result,"action":"queued_private"},202)
@@ -558,6 +564,16 @@ def _queue_one_nasa_private_validation():
         print("AUTOCLIPS_NASA_PRIVATE_TEST_DEFERRED", type(exc).__name__, flush=True)
 
 
+def _image_attribution(qa: dict) -> str:
+    """CC BY 4.0 requires author, source, licence and modification notice."""
+    if qa.get("image_mode") != "wikimedia_cc_by":
+        return ""
+    return ("\\nFoto do painel inferior: " + str(qa.get("image_credit") or "") +
+            "\\nArquivo original: " + str(qa.get("image_source_url") or "") +
+            "\\nLicença: " + str(qa.get("image_license_url") or "") +
+            "\\nAdaptação: recorte e redimensionamento para vídeo vertical.")[0:750]
+
+
 def _queue_one_approved_chat_source():
     """One private upload per explicitly rights-cleared chat source, never public."""
     with db.conn() as c:
@@ -591,7 +607,8 @@ def _queue_one_approved_chat_source():
             description=("AutoClips AI - edição de vídeo com direitos "
                          "de uso confirmados pelo responsável. "
                          "Fonte: https://www.youtube.com/watch?v=" +
-                         row["original_video_id"] + " #Shorts"),
+                         row["original_video_id"] + " #Shorts" +
+                         _image_attribution(qa)),
             explicitly_approved=True,privacy="private")
         print("AUTOCLIPS_CHAT_PRIVATE_TEST_QUEUED",result["clip_id"],flush=True)
     except Exception as exc:

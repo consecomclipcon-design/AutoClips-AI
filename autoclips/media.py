@@ -284,7 +284,12 @@ def import_hosted_approved(url: str, project_id: str, owner_authorized: bool) ->
             if getattr(response, 'status', 200) != 200:
                 raise ValueError('A origem de vídeo não retornou HTTP 200')
             size = response.headers.get('Content-Length')
-            if size and int(size) > MAX_SOURCE_BYTES:
+            # Keep at least 125 MiB free for caption renders, SQLite and other jobs.
+            # Stream/transcode from the trusted signed HTTPS source instead of
+            # filling the volume with a 40-180 MiB original first.
+            room = max(16 * 1024 * 1024,
+                       shutil.disk_usage(folder).free - 125 * 1024 * 1024)
+            if not size or int(size) > min(MAX_SOURCE_BYTES, room):
                 # vidIQ accepts 299 MB while the 500 MB Railway volume can
                 # store less. Compress the approved private Google-hosted
                 # source directly over HTTPS rather than downloading twice.

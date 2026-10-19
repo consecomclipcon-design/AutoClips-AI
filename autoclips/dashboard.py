@@ -529,6 +529,9 @@ def _archive_reviewed_sources() -> int:
     import shutil
 
     if not source_archive.configured():
+        if not getattr(_archive_reviewed_sources, "_warned_config", False):
+            print("AUTOCLIPS_ARCHIVE_NOT_CONFIGURED", flush=True)
+            _archive_reviewed_sources._warned_config = True
         return 0
     free = shutil.disk_usage(home()).free
     if free >= 240 * 1024 * 1024:
@@ -536,16 +539,25 @@ def _archive_reviewed_sources() -> int:
     with db.conn() as c:
         candidates = c.execute("""SELECT p.id,p.media FROM projects p
             JOIN dashboard_sources s ON s.project_id=p.id
-            WHERE s.status='awaiting_review' AND p.media IS NOT NULL
-            AND EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
+            WHERE s.status IN ('awaiting_review','failed') AND p.media IS NOT NULL
+            AND (s.status='failed' OR (
+                EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
                        AND k.status='ready' AND k.path IS NOT NULL)
-            AND NOT EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
-                           AND k.status<>'ready')
+                AND NOT EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
+                               AND k.status<>'ready')))
             AND NOT EXISTS(SELECT 1 FROM jobs j WHERE
                            (j.target_id=p.id OR j.target_id IN (
                              SELECT k.id FROM clips k WHERE k.project_id=p.id))
                            AND j.status IN ('queued','running'))
             ORDER BY s.updated_at ASC""").fetchall()
+    if not candidates:
+        if not getattr(_archive_reviewed_sources, "_warned_candidates", False):
+            with db.conn() as c:
+                snapshot = [dict(x) for x in c.execute(
+                    "SELECT status,count(*) AS count FROM dashboard_sources GROUP BY status")]
+            print("AUTOCLIPS_ARCHIVE_NO_SAFE_CANDIDATES", snapshot, flush=True)
+            _archive_reviewed_sources._warned_candidates = True
+        return 0
     root = (home() / "projects").resolve()
     released = 0
     for row in candidates:

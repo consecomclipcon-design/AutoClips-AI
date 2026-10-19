@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import os
+import json
 
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse
@@ -26,11 +27,27 @@ async def health(request):
 
 async def youtube_oauth_start(request):
     """One-owner, first-time-only Google consent; authenticated channel is pinned."""
+    status = oauth_web.safe_diagnostics()
+    if status["reason"] == "connected":
+        return PlainTextResponse(
+            "O canal ja esta conectado ao AutoClips. Nao e necessario autorizar novamente.",
+            status_code=409, headers={"cache-control": "no-store"},
+        )
+    if not status["ready"]:
+        return PlainTextResponse(
+            "OAuth ainda indisponivel: " + status["reason"] +
+            (". Variaveis: " + ", ".join(status.get("missing_variable_names", [])) if status.get("missing_variable_names") else ""),
+            status_code=503, headers={"cache-control": "no-store"},
+        )
     try:
         return RedirectResponse(oauth_web.start_authorization(), status_code=302,
                                 headers={"cache-control": "no-store", "referrer-policy": "no-referrer"})
-    except Exception:
-        return PlainTextResponse("Autorização indisponível ou canal já conectado.", status_code=403)
+    except Exception as exc:
+        print("AUTOCLIPS_OAUTH_START_ERROR", type(exc).__name__, flush=True)
+        return PlainTextResponse(
+            "Nao foi possivel iniciar o OAuth: erro de estado ou armazenamento.",
+            status_code=503, headers={"cache-control": "no-store"},
+        )
 
 
 async def youtube_oauth_callback(request):
@@ -57,6 +74,9 @@ async def youtube_connection_status(request):
 
 @asynccontextmanager
 async def lifespan(app):
+    diagnostics = oauth_web.safe_diagnostics()
+    # Safe, non-secret diagnostic (no OAuth codes, tokens or client secret).
+    print("AUTOCLIPS_OAUTH_PREFLIGHT " + json.dumps(diagnostics), flush=True)
     async with mcp.session_manager.run():
         yield
 

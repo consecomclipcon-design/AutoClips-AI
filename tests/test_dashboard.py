@@ -248,3 +248,38 @@ def test_video_file_stays_private_without_dashboard_cookie(working):
         assert c.get("/api/console/media/"+clip).status_code==401
         c.post("/auth/login",json={"password":"test-owner-password-is-secure"})
         assert c.get("/api/console/media/"+clip).status_code==200
+
+
+def test_agent_chat_media_ingests_once_and_never_publishes_without_rights(working, monkeypatch):
+    import json
+    entry = {
+        "video_id": "Er5L6cxnRTc",
+        "youtube_url": "https://www.youtube.com/watch?v=Er5L6cxnRTc",
+        "media_url": "https://storage.googleapis.com/vidiq-user-videos/safe.mp4?sig=short",
+        "title": "NASA JPL short",
+        "private_publish_approved": True,
+        "rights_confirmed": False,
+    }
+    monkeypatch.setenv("AUTOCLIPS_AGENT_CHAT_IMPORT", json.dumps(entry))
+    dashboard._db_init()
+    dashboard._db_init()  # must never enqueue same signed link twice
+    with db.conn() as c:
+        rows = c.execute("SELECT * FROM dashboard_sources WHERE id='src_chat_Er5L6cxnRTc'").fetchall()
+        assert len(rows) == 1
+        rights = c.execute("SELECT * FROM chat_ingest_permissions WHERE source_id=?",
+                           ("src_chat_Er5L6cxnRTc",)).fetchone()
+        assert rights["private_publish_approved"] == 1
+        assert rights["rights_confirmed"] == 0
+        clip = add_clip(working, 990)
+        c.execute("""UPDATE dashboard_sources SET status='awaiting_review', project_id=?
+                     WHERE id='src_chat_Er5L6cxnRTc'""", ("prj_000000000990",))
+    dashboard._queue_one_approved_chat_source()
+    assert publish_queue.get_publication(clip) is None
+    with db.conn() as c:
+        c.execute("UPDATE chat_ingest_permissions SET rights_confirmed=1 WHERE source_id=?",
+                  ("src_chat_Er5L6cxnRTc",))
+    dashboard._queue_one_approved_chat_source()
+    row = publish_queue.get_publication(clip)
+    assert row["status"] == "queued" and row["privacy"] == "private"
+    dashboard._queue_one_approved_chat_source()
+    assert publish_queue.get_publication(clip)["status"] == "queued"

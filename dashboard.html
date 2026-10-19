@@ -45,7 +45,7 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
     <div class="small" id="pending">0 aguardando</div>
     <div class="line"></div>
     <div class="aside-heading">Atalhos</div>
-    <div class="small">↑ Próximo corte<br>↓ Corte anterior<br>← / → Navegar<br>♥ Publicar público<br>👎 Reprovar e refazer</div>
+    <div class="small">↑ Próximo corte<br>↓ Corte anterior<br>← / → Navegar<br>♥ Publicar privado<br>👎 Reprovar e refazer</div>
     <div class="notice">20 Shorts por dia no horário de São Paulo. Aprovados além do limite aguardam o próximo dia, automaticamente.</div>
   </aside>
   <main class="feed-zone">
@@ -57,7 +57,7 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
     </div>
     <div class="reactions">
       <div class="reaction"><button class="arrow" id="prev" title="Voltar ao anterior">↑</button><span>Anterior</span></div>
-      <div class="reaction yes"><button class="btn circle" id="approve" title="Aprovar e publicar publicamente">♥</button><span>Publicar</span></div>
+      <div class="reaction yes"><button class="btn circle" id="approve" title="Aprovar e publicar privadamente">♥</button><span>Publicar</span></div>
       <div class="reaction no"><button class="btn circle" id="disapprove" title="Não aprovar e solicitar refação">👎</button><span>Refazer</span></div>
       <div class="reaction"><button class="arrow" id="next" title="Avançar ao próximo">↓</button><span>Próximo</span></div>
     </div>
@@ -101,7 +101,7 @@ const $=id=>document.getElementById(id);let feed=[],current=0,changing=false,tou
 const req=async(url,options={})=>{const headers={'Accept':'application/json',...(options.body?{'Content-Type':'application/json','X-Autoclips-Action':'1'}:{})};const response=await fetch(url,{...options,headers:{...headers,...options.headers},credentials:'same-origin'});let data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||('Erro HTTP '+response.status));return data};
 const showToast=msg=>{const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(showToast.timeout);showToast.timeout=setTimeout(()=>t.classList.add('hidden'),4000)};
 function sourceState(s){const labels={queued:'Aguardando',importing:'Baixando/transcrevendo',rendering:'Editando os cortes',awaiting_review:'Pronto para revisar',failed:'Falha'};return labels[s]||s}
-function publishedState(s){const labels={queued:'Aprovado · na fila pública',publishing:'Publicando no YouTube...',published:'Publicado no YouTube',failed_review:'Falha de publicação · revisão necessária'};return labels[s]||'Aguardando aprovação'}
+function publishedState(s){const labels={queued:'Aprovado · na fila privada',publishing:'Publicando no YouTube...',published:'Publicado no YouTube',failed_review:'Falha de publicação · revisão necessária'};return labels[s]||'Aguardando aprovação'}
 function changeClip(n){if(!feed.length)return;current=(n+feed.length)%feed.length;renderClip()}
 function renderClip(){const v=$('player'),item=feed[current];if(!item){v.pause();v.removeAttribute('src');v.classList.add('hidden');$('videoOverlay').classList.add('hidden');$('position').classList.add('hidden');$('emptyFeed').classList.remove('hidden');$('reviewStatus').textContent='Selecione um vídeo no feed.';return;}
  $('emptyFeed').classList.add('hidden');v.classList.remove('hidden');$('videoOverlay').classList.remove('hidden');$('position').classList.remove('hidden');
@@ -112,7 +112,7 @@ function renderClip(){const v=$('player'),item=feed[current];if(!item){v.pause()
  $('comment').value=item.feedback||'';
  $('rightsPublish').checked=false;
  $('approve').disabled=Boolean(item.publication_status);
- $('approve').title=item.publication_status?'Esse corte já está na fila do YouTube':'Curtir para publicar publicamente';
+ $('approve').title=item.publication_status?'Esse corte já está na fila do YouTube':'Curtir para publicar em modo privado';
 }
 async function refresh(){try{
  const old=feed[current]?.id;
@@ -137,7 +137,7 @@ async function vote(decision){const item=feed[current];if(!item){showToast('Adic
  if(decision==='like'&&!$('rightsPublish').checked){showToast('Confirme os direitos de uso antes de publicar.');return}
  const body={clip_id:item.id,decision,comment:$('comment').value.trim(),rights_confirmed:decision==='like'&&$('rightsPublish').checked};
  const res=await req('/api/console/review',{method:'POST',body:JSON.stringify(body)});
- if(decision==='like')showToast('♥ Aprovado! Publicação PÚBLICA colocada na fila.');
+ if(decision==='like')showToast('♥ Aprovado! Publicação PRIVADA colocada na fila.');
  else showToast(res.action==='remake_queued'?'👎 Nova versão em produção.':'👎 Feedback salvo.');
  await refresh();
  }catch(e){showToast(e.message)}}

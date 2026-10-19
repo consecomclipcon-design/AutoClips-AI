@@ -133,7 +133,7 @@ async function vote(decision){const item=feed[current];if(!item){showToast('Adic
  else showToast(res.action==='remake_queued'?'👎 Nova versão em produção.':'👎 Feedback salvo.');
  await refresh();
  }catch(e){showToast(e.message)}}
-async function boot(){const s=await req('/api/console/session');$('loginShell').classList.toggle('hidden',s.loggedIn);$('studio').classList.toggle('hidden',!s.loggedIn);if(s.loggedIn)await refresh()}
+async function boot(){const s=await req('/auth/session');$('loginShell').classList.toggle('hidden',s.loggedIn);$('studio').classList.toggle('hidden',!s.loggedIn);if(s.loggedIn)await refresh()}
 $('loginCard').addEventListener('submit',async e=>{e.preventDefault();try{await req('/auth/login',{method:'POST',body:JSON.stringify({password:$('password').value})});$('password').value='';$('loginError').classList.add('hidden');await boot()}catch(err){$('loginError').textContent='Não foi possível entrar: '+err.message;$('loginError').classList.remove('hidden')}});
 $('logoutBtn').onclick=async()=>{await req('/auth/logout',{method:'POST',body:JSON.stringify({})});location.reload()};
 $('prev').onclick=()=>changeClip(-1);$('next').onclick=()=>changeClip(1);$('mobileNext').onclick=()=>changeClip(1);

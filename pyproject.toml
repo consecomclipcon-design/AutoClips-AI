@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoclips-mcp"
+version = "0.2.0"
+description = "Servidor MCP para transcrição, seleção, edição e publicação autorizada de Shorts"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp[cli]>=2,<3",
+  "uvicorn>=0.34,<1",
+  "starlette>=0.45,<1",
+  "faster-whisper>=1.1,<2",
+  "google-api-python-client>=2.150,<3",
+  "google-auth-oauthlib>=1.2,<2",
+  "google-auth-httplib2>=0.2,<1",
+]
+
+[project.optional-dependencies]
+youtube-import = ["yt-dlp>=2025.1"]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["autoclips*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -18,15 +18,16 @@ from .youtube import channel, upload, validate_schedule
 # Motor de tarefas local: permanece ativo apenas enquanto o processo estiver aberto.
 POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="autoclips")
 INIT_LOCK = threading.Lock()
-INITIALIZED = False
+INITIALIZED = set()
 
 
 def init() -> None:
-    global INITIALIZED
+    # Multiple workspaces can be used by tests and local tooling in one process.
+    root = str(home())
     with INIT_LOCK:
-        if not INITIALIZED:
+        if root not in INITIALIZED:
             db.init_db()
-            INITIALIZED = True
+            INITIALIZED.add(root)
 
 
 def _work(job_id: str, fn, *args) -> None:

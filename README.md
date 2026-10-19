@@ -255,3 +255,15 @@ A imagem Docker instala `yt-dlp[default]`, o solver EJS e Node.js 22; usa 3 tent
 Se a plataforma limitar o acesso ao download, **não tente contornar login/DRM**: envie o MP4 original autorizado pela rota acima.
 Há persistência local em `/data` no volume Railway, mas os jobs usam pool em memória e não serão retomados automaticamente após reinício.
 A existência dessas rotas não representa integração MCP com o ChatGPT: é preciso conectá-lo com autenticação compatível.
+
+### API HTTP privada (clientes confiáveis)
+
+A partir da versão 0.7 há uma ponte REST **autenticada** para operação e diagnóstico:
+
+- `PUT /api/uploads`: bytes de vídeo original; cabeçalhos `X-Filename` e `Content-Type`.
+- `POST /api/projects`: JSON `{"source":"https://www.youtube.com/watch?v=VIDEO_ID","source_kind":"youtube","authorized":true,"auto_transcribe":false}`. Retorna HTTP 202 com `project_id` e `job_id`. Para vídeo carregado antes, use `source_kind: "file"` e `source` igual ao `filename` do upload.
+- `GET /api/jobs/{job_id}`: consulta estado de importação (queued/running/completed/failed) e resultado incluindo caminho, duração e resolução, quando concluído.
+
+Todas as rotas (exceto `/health`) exigem `Authorization: Bearer <MCP_GATEWAY_TOKEN>`. Use somente backend ou cliente seguro; tokens de Railway são confidenciais, não devem ser enviados a browser aberto nem ao repositório. A API não fornece OAuth nativo para registrar o ChatGPT; integração ChatGPT requer uma ponte OAuth apropriada.
+
+**Limite inicial do Railway:** fontes YouTube até 35 min e vídeos até 180 MiB, por causa do volume persistente atual de 500 MB. Vídeos longos/grandes exigem mover o storage para bucket de objetos e adaptar fila/worker; não relaxe limites sem isso. Não use upload de conteúdo de terceiros sem direitos e conformidade com regras da plataforma.

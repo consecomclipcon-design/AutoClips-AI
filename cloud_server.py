@@ -15,6 +15,7 @@ from starlette.routing import Mount, Route
 
 from autoclips.cloud_auth import BearerGate
 from autoclips.upload_http import upload_media
+from autoclips.api_http import create_project, status_job
 from server import mcp
 
 
@@ -34,6 +35,8 @@ inner = Starlette(
     routes=[
         Route("/health", health, methods=["GET"]),
         Route("/api/uploads", upload_media, methods=["PUT"]),
+        Route("/api/projects", create_project, methods=["POST"]),
+        Route("/api/jobs/{job_id}", status_job, methods=["GET"]),
         Mount("/", app=mcp.streamable_http_app(
             host="0.0.0.0", json_response=True, stateless_http=True,
         )),

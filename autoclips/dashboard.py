@@ -701,6 +701,8 @@ def _tick():
                 with db.conn() as c:
                     c.execute("UPDATE dashboard_renders SET status=? WHERE clip_id=?",
                               ("ready" if job["status"]=="completed" else "failed",r["clip_id"]))
+                if job["status"]=="completed":
+                    _safe_quality_audit(r["clip_id"])
         except Exception:
             pass
     with db.conn() as c:
@@ -871,11 +873,36 @@ def _worker():
         time.sleep(15)
 
 
+def _safe_quality_audit(clip_id: str) -> None:
+    """Log only nonsecret language/layout/image readiness for QA."""
+    try:
+        item=db.one("clips",clip_id)
+        path=Path(item.get("path") or "")
+        qa_path=path.with_suffix(".qa.json")
+        if not qa_path.is_file():
+            return
+        qa=json.loads(qa_path.read_text(encoding="utf-8"))
+        print("AUTOCLIPS_QUALITY_AUDIT",clip_id,
+              "language",qa.get("language"),
+              "image_mode",qa.get("image_mode"),
+              "captions",qa.get("caption_events"),
+              "publish_ready",qa.get("auto_publish_ready"),flush=True)
+    except Exception:
+        pass
+
+
 def start_background_worker():
     global _WORKER_STARTED
     if _WORKER_STARTED:
         return
     _db_init()
+    # Include previously rendered clips after a restart, without reopening media
+    # or leaking signed URLs/tokens into logs.
+    with db.conn() as c:
+        audit_ids=[v["id"] for v in c.execute("""SELECT id FROM clips WHERE status='ready'
+                                                ORDER BY created DESC LIMIT 12""")]
+    for clip_id in audit_ids:
+        _safe_quality_audit(clip_id)
     t=threading.Thread(target=_worker,name="autoclips-review-publish",daemon=True)
     t.start()
     _WORKER_STARTED=True

@@ -1,0 +1,92 @@
+name: Publish Owner-Approved Cariani Short (PUBLIC)
+on:
+  push:
+    paths:
+      - ".github/workflows/upload-approved-demo.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+jobs:
+  deliver-reviewed-carani-mp4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - name: Retrieve previously edited original MP4 (AutoClips, not vidIQ editor)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/car" 
+          gh run download 39252748187 --repo consecomclipcon-design/AutoClips-AI \
+            --name AutoClips-Cariani-80s-Video-Real --dir "$RUNNER_TEMP/car"
+          test -f "$RUNNER_TEMP/car/AutoClips_Cariani_casamento_contexto.mp4"
+          echo "d284801ffe3de719e885e0146b9bd2ff29311db51cacf4253c2166a3bae5e055  $RUNNER_TEMP/car/AutoClips_Cariani_casamento_contexto.mp4" | sha256sum -c -
+          test "$(stat -c %s "$RUNNER_TEMP/car/AutoClips_Cariani_casamento_contexto.mp4")" -eq 26325600
+          echo "Approved 80s MP4: size and SHA256 verified"
+      - name: Transport MP4 to protected AutoClips worker using GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://autoclips-worker-production.up.railway.app/internal/approved-demo"
+          file="$RUNNER_TEMP/car/AutoClips_Cariani_casamento_contexto.mp4"
+          # Google OAuth stays on Railway. GitHub receives no refresh token or secret.
+          oidc="$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=autoclips-clipcon-approved-80s-import" \
+            | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')"
+          result="$(curl --silent --show-error --max-time 340 --retry 6 --retry-delay 10 \
+            --retry-connrefused --retry-all-errors --output "$RUNNER_TEMP/response.json" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $oidc" --header "Content-Type: video/mp4" \
+            --data-binary "@$file" "$url")"
+          echo "AutoClips ingestion HTTP: $result"
+          python3 - <<'PY'
+          import os,json
+          r=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"response.json")))
+          print("Ingest:", {k:v for k,v in r.items() if k in ("imported","state","error","error_type","publication")})
+          if not r.get("imported") and r.get("state")!="already_imported":
+            raise SystemExit("MP4 ingestion failed. Did not publish unverified content.")
+          PY
+      - name: Verify PUBLIC publication result in AutoClips database
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://autoclips-worker-production.up.railway.app/internal/approved-demo"
+          for iteration in $(seq 1 80); do
+            oidc="$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+               "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=autoclips-clipcon-approved-80s-import" \
+               | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')"
+            curl -fsSL --max-time 30 -H "Authorization: Bearer $oidc" \
+              "$url" -o "$RUNNER_TEMP/published.json"
+            export RESULT_FILE="$RUNNER_TEMP/published.json"
+            verdict="$(python3 - <<'PY'
+          import os,json
+          data=json.load(open(os.environ["RESULT_FILE"]))
+          publication=data.get("publication") or {}
+          status=publication.get("status","missing")
+          url=publication.get("youtube_url")
+          print("PUBLISHED" if status=="published" and isinstance(url,str) and
+                url.startswith("https://www.youtube.com/watch?v=") else
+                "FAILED" if status=="failed_review" else "WAIT")
+          PY
+            )"
+            if [ "$verdict" = "PUBLISHED" ]; then
+              python3 - <<'PY'
+          import os,json
+          r=json.load(open(os.environ["RESULT_FILE"]))
+          print("PUBLICATION_CONFIRMED:",r["publication"]["youtube_url"])
+          PY
+              exit 0
+            fi
+            if [ "$verdict" = "FAILED" ]; then
+              python3 - <<'PY'
+          import os,json
+          r=json.load(open(os.environ["RESULT_FILE"]))
+          print("UPLOAD_ERROR:",(r.get("publication") or {}).get("error","unknown")[:200])
+          PY
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out without a confirmed YouTube URL; never retry an ambiguous upload automatically."
+          exit 1

@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-youtube-import = ["yt-dlp[default]>=2026.1,<2027"]
+youtube-import = ["yt-dlp[default]>=2026.1,<2027", "bgutil-ytdlp-pot-provider==2.0.2"]
 test = ["pytest>=8"]
 
 [tool.setuptools.packages.find]

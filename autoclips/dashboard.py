@@ -21,6 +21,8 @@ from urllib.parse import urlparse
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from . import database as db
 from . import pipeline
+from .editorial import select_contextual_portuguese_clips
+from .transcript import load_transcript
 from .publish_queue import create_tables as init_publications, enqueue_publication, daily_status, publish_next
 from .settings import home
 
@@ -577,6 +579,12 @@ def _queue_one_approved_chat_source():
     if not clip:
         return
     try:
+        media = db.one("clips",clip["id"])
+        qa_path=Path(media["path"]).with_suffix(".qa.json")
+        qa=json.loads(qa_path.read_text(encoding="utf-8")) if qa_path.is_file() else {}
+        if not qa.get("auto_publish_ready"):
+            print("AUTOCLIPS_CHAT_PRIVATE_QUALITY_REVIEW_REQUIRED",clip["id"],flush=True)
+            return
         result = enqueue_publication(
             clip["id"],
             title=(row["title"][:78] + " #Shorts")[:100],
@@ -643,14 +651,13 @@ def _tick():
                 if not project.get("transcript"):
                     raise ValueError("Source has no transcript")
                 duration=float(project.get("duration") or 0)
-                if duration <= 12:
-                    raise ValueError("Vídeo curto demais para gerar corte")
+                transcript=load_transcript(project["transcript"])
                 desired = 1 if duration < 180 else (2 if duration < 360 else 3)
-                min_window = min(35, max(10, int(duration*0.52)))
-                max_window = min(90, max(min_window,int(duration)))
-                picks=pipeline.suggest_clips(row["project_id"],count=desired,
-                                             min_seconds=min_window,max_seconds=max_window)["suggestions"]
-                if not picks: raise ValueError("No promising sections found")
+                picks = select_contextual_portuguese_clips(
+                    transcript,duration,count=desired)
+                if not picks:
+                    raise ValueError("Revisão necessária: não encontrei gancho em português com começo, desenvolvimento e fim.")
+                print("AUTOCLIPS_PT_EDITORIAL_SELECTED",row["id"],len(picks),flush=True)
                 for item in picks:
                     started=pipeline.start_render_split(row["project_id"],
                                                         float(item["start"]),float(item["end"]))

@@ -12,6 +12,7 @@ dependencies = [
   "uvicorn>=0.34,<1",
   "starlette>=0.45,<1",
   "faster-whisper>=1.1,<2",
+  "av>=11,<19",  # older PyAV required by faster-whisper 1.2.x
   "google-api-python-client>=2.150,<3",
   "google-auth-oauthlib>=1.2,<2",
   "google-auth-httplib2>=0.2,<1",

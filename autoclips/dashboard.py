@@ -432,6 +432,11 @@ def _queue_one_nasa_private_validation():
                  FROM dashboard_sources s WHERE s.id=?""", (source_id,)).fetchone()
         if (not row or row["status"] != "awaiting_review" or
                 row["original_video_id"] != "Er5L6cxnRTc"):
+            if row and not getattr(_queue_one_nasa_private_validation, "_state_reported", False):
+                print("AUTOCLIPS_NASA_STATUS",
+                      dict((k,row[k]) for k in ("status","project_id","original_video_id")),
+                      flush=True)
+                _queue_one_nasa_private_validation._state_reported=True
             return
         attempted = c.execute("""SELECT 1 FROM dashboard_publishes q
             JOIN clips k ON q.clip_id=k.id WHERE k.project_id=? LIMIT 1""",
@@ -442,6 +447,19 @@ def _queue_one_nasa_private_validation():
             WHERE project_id=? AND status='ready' AND path IS NOT NULL
             ORDER BY created ASC LIMIT 1""", (row["project_id"],)).fetchone()
     if not choice:
+        if not getattr(_queue_one_nasa_private_validation, "_empty_reported", False):
+            with db.conn() as c:
+                states = [dict(v) for v in c.execute(
+                    "SELECT status, count(*) AS qty FROM clips WHERE project_id=? GROUP BY status",
+                    (row["project_id"],))]
+                render_states = [dict(v) for v in c.execute("""
+                    SELECT r.status AS render_status,k.error AS clip_error,j.status AS job_status,
+                           substr(j.error,1,180) AS job_error
+                    FROM dashboard_renders r LEFT JOIN clips k ON r.clip_id=k.id
+                    LEFT JOIN jobs j ON r.job_id=j.id
+                    WHERE k.project_id=?""", (row["project_id"],))]
+            print("AUTOCLIPS_NASA_NO_READY_CLIP", states, render_states, flush=True)
+            _queue_one_nasa_private_validation._empty_reported=True
         return
     try:
         result = enqueue_publication(

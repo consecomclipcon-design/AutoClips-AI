@@ -91,6 +91,7 @@ inner = Starlette(
         Route("/auth/login", dashboard.login, methods=["POST"]),
         Route("/auth/logout", dashboard.logout, methods=["POST"]),
         Route("/auth/session", dashboard.session, methods=["GET"]),
+        Route("/api/console/session", dashboard.session, methods=["GET"]),  # compatibility with already-open tabs
         Route("/api/console/status", dashboard.status, methods=["GET"]),
         Route("/api/console/feed", dashboard.feed, methods=["GET"]),
         Route("/api/console/media/{clip_id}", dashboard.media, methods=["GET"]),

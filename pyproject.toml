@@ -17,6 +17,7 @@ dependencies = [
   "google-auth-oauthlib>=1.2,<2",
   "google-auth-httplib2>=0.2,<1",
   "cryptography>=43,<47",
+  "PyJWT[crypto]>=2.9,<3",
 ]
 
 [project.optional-dependencies]

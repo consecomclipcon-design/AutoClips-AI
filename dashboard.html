@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>AutoClips Studio · ClipCon</title>
+<style>
+:root{color-scheme:dark;--bg:#08090f;--surface:#11141d;--panel:#181b25;--line:#2c303e;--sub:#a8afc0;--white:#fafafa;--hot:#ff4667;--good:#49df9e}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--white);font:500 14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif}button,input,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}a{color:#a7c4ff}.hidden{display:none!important}.logo{display:flex;align-items:center;gap:9px;font-weight:850;letter-spacing:-.8px;font-size:22px}.logo-symbol{background:linear-gradient(130deg,#fc5579,#a24bff);border-radius:10px;padding:5px 8px;font-weight:950;box-shadow:0 8px 30px #fc557924}
+header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0d0e16;position:relative;z-index:3}.topright{display:flex;gap:10px;align-items:center;color:var(--sub)}.pill{border:1px solid #3c4151;border-radius:999px;padding:6px 11px;background:#1d2231}.pill.green{border-color:#21543b;color:var(--good)}
+.btn{border:1px solid var(--line);background:#1c202c;color:var(--white);border-radius:11px;padding:10px 15px;font-weight:750;transition:transform .12s,background .12s}.btn:hover{background:#252b39}.btn:active{transform:scale(.97)}.btn.primary{background:linear-gradient(120deg,#ff4b77,#b54eff);border:0;color:white}.btn.primary:hover{filter:brightness(1.11)}.btn.soft{background:transparent}.btn.circle{border-radius:100px;width:51px;height:51px;padding:0;font-size:22px;display:grid;place-items:center;background:#191d29d9}
+.wrap{display:grid;grid-template-columns:250px minmax(320px,1fr) 300px;gap:18px;min-height:calc(100dvh - 72px);max-width:1540px;margin:auto;padding:19px}.sidebar,.rightbar{background:#10131c;border:1px solid #272c39;border-radius:20px;padding:21px;align-self:start}.nav{width:100%;display:flex;align-items:center;gap:10px;padding:14px 12px;border:0;background:transparent;color:#b9bfd0;text-align:left;border-radius:10px;font-weight:800}.nav.active{background:#242737;color:#fff}.nav .dot{width:9px;height:9px;background:var(--hot);border-radius:99px}.aside-heading{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#858b9d;font-weight:900;margin:22px 0 13px}.stat-big{font-size:36px;font-weight:900;letter-spacing:-1.8px}.progress{height:7px;border-radius:90px;background:#2b2d3c;overflow:hidden;margin:15px 0}.progress>span{display:block;background:linear-gradient(90deg,#ff4672,#ae57ff);height:100%;width:0}.small{font-size:12px;color:var(--sub)}.line{height:1px;background:var(--line);margin:20px 0}.secondary{color:var(--sub)}.feed-zone{display:flex;align-items:center;justify-content:center;min-height:calc(100dvh - 116px);position:relative;gap:14px}.phone-frame{height:min(760px,calc(100dvh - 118px));aspect-ratio:9/16;max-width:calc(100vw - 100px);border:4px solid #2e3444;border-radius:23px;overflow:hidden;position:relative;background:linear-gradient(150deg,#171d2e,#101014);box-shadow:0 30px 75px #0009}.phone-frame video{height:100%;width:100%;object-fit:contain;background:black}.video-overlay{position:absolute;bottom:0;left:0;right:0;padding:65px 14px 19px;background:linear-gradient(0deg,#070707ef,transparent);pointer-events:none}.video-overlay>*{margin:0}.video-title{font-weight:850;font-size:16px;line-height:1.35;text-shadow:0 2px 7px #000}.video-meta{font-size:12px;color:#e4e4eb;margin-top:6px}.play-state{position:absolute;top:14px;left:14px;background:#090909a8;border-radius:50px;padding:6px 10px;font-size:12px}.video-btn{position:absolute;top:12px;right:12px;background:#15151acc;color:white;border:1px solid #ffffff25;padding:7px 10px;border-radius:15px}.reactions{display:flex;flex-direction:column;gap:11px;align-items:center}.reaction{display:flex;flex-direction:column;align-items:center;gap:4px}.reaction span{font-size:10px;color:#c5cad8;font-weight:700}.reaction.yes .btn:hover{color:#ff577c;border-color:#ff577c}.reaction.no .btn:hover{color:#fbbb64;border-color:#fbbb64}.reaction .arrow{height:39px;width:48px;border-radius:10px;border:1px solid #454b59;background:#25293b;color:white;font-size:21px}
+.empty{border:1px dashed #4a5060;border-radius:20px;padding:24px;text-align:center;color:var(--sub);max-width:350px}.empty strong{display:block;color:white;font-size:20px;margin:12px}
+.panel-title{font-size:19px;font-weight:900;letter-spacing:-.4px;margin:0 0 14px}.input{width:100%;color:white;background:#181b26;border:1px solid #35394a;padding:12px 13px;border-radius:12px;outline:none;resize:vertical}.input:focus{border-color:#9d69ff}.sidebar .btn,.rightbar .btn{width:100%;margin-top:9px}.source{font-size:12px;border:1px solid #303442;border-radius:11px;padding:10px;margin-top:9px;word-break:break-word}.source .status{font-weight:800;color:#a4c8ff}.status.fail{color:#ff7b8f}.status.ok{color:var(--good)}.notice{background:#1b2030;border-left:3px solid #bb77ff;padding:12px;border-radius:6px 10px 10px 6px;font-size:12px;color:#d2d6e4;margin-top:13px}.feedback{border:1px solid #282c3c;background:#131724;border-radius:14px;padding:13px;margin-top:18px}.feedback textarea{min-height:80px}.hint{font-size:11px;color:#8c94a8;line-height:1.55}.alert{padding:12px;border-radius:10px;margin-top:12px;background:#44252e;color:#ffccd1}.success{background:#163729;color:#b9ffe2}
+#loginShell{display:flex;min-height:100dvh;align-items:center;justify-content:center;padding:20px}.login-card{max-width:430px;width:100%;background:#121521;border:1px solid #343b4d;border-radius:22px;padding:32px;box-shadow:0 25px 90px #0009}.login-card .logo{margin-bottom:20px}.login-card .btn{width:100%;margin-top:16px}.login-card h1{font-size:27px;letter-spacing:-1px}.login-card p{color:#a5adbd}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:7;padding:12px 18px;background:#23283b;color:white;border:1px solid #596079;border-radius:12px;max-width:90vw;box-shadow:0 14px 40px #000b}
+@media(max-width:1150px){.wrap{grid-template-columns:220px 1fr;gap:12px}.rightbar{grid-column:1/-1}.feed-zone{grid-row:1/3}.rightbar{grid-row:3}.sidebar{grid-column:1}}@media(max-width:690px){header{height:62px;padding:0 14px}.topright .pill{display:none}.wrap{grid-template-columns:1fr;padding:8px;gap:9px}.sidebar{display:none}.feed-zone{min-height:calc(100dvh - 145px);grid-column:1;grid-row:1}.phone-frame{height:min(690px,calc(100dvh - 172px));border-radius:17px}.reactions{gap:6px}.btn.circle{width:40px;height:40px;font-size:19px}.rightbar{grid-row:2;grid-column:1;padding:16px}.mobile-nav{display:flex!important;gap:8px}.mobile-nav .btn{margin:0;flex:1}.aside-heading{margin-top:10px}}
+.mobile-nav{display:none;padding:6px}
+</style>
+</head>
+<body>
+<section id="loginShell">
+  <form id="loginCard" class="login-card">
+    <div class="logo"><span class="logo-symbol">▶</span> AutoClips <span style="color:#bd90f9">Studio</span></div>
+    <h1>Seu estúdio de Shorts.</h1><p>Faça login para assistir, aprovar, pedir ajustes e controlar a publicação no canal ClipCon.</p>
+    <label for="password" class="small">Senha de acesso do painel</label><input class="input" id="password" type="password" required autocomplete="current-password"/>
+    <button class="btn primary" type="submit">Entrar no estúdio →</button>
+    <div class="alert hidden" id="loginError"></div>
+  </form>
+</section>
+<div id="studio" class="hidden">
+<header>
+  <div class="logo"><span class="logo-symbol">▶</span> AutoClips <span style="color:#bd90f9">Studio</span></div>
+  <div class="topright"><span class="pill green" id="channelLabel">● Canal YouTube</span><span class="pill" id="quotaTop">0 / 20 hoje</span><button class="btn soft" id="logoutBtn">Sair</button></div>
+</header>
+<div class="mobile-nav"><button class="btn" id="toggleSources">+ Adicionar links</button><button class="btn" id="mobileNext">Próximo ↓</button></div>
+<div class="wrap">
+  <aside class="sidebar" id="sidebar">
+    <h3 style="margin:0 0 15px">Painel de controle</h3>
+    <button class="nav active" type="button"><i class="dot"></i> Feed de cortes</button>
+    <button class="nav" type="button" id="navSources">＋ Importar links</button>
+    <div class="aside-heading">Publicações</div>
+    <div class="stat-big" id="used">0 <span style="font-size:17px;color:#a4abc0">/20</span></div>
+    <div class="small">Shorts enviados / reservados hoje</div>
+    <div class="progress"><span id="usedBar"></span></div>
+    <div class="small" id="pending">0 aguardando</div>
+    <div class="line"></div>
+    <div class="aside-heading">Atalhos</div>
+    <div class="small">↑ Próximo corte<br>↓ Corte anterior<br>← / → Navegar<br>♥ Publicar público<br>👎 Reprovar e refazer</div>
+    <div class="notice">20 Shorts por dia no horário de São Paulo. Aprovados além do limite aguardam o próximo dia, automaticamente.</div>
+  </aside>
+  <main class="feed-zone">
+    <div class="phone-frame" id="phoneFrame">
+      <video id="player" playsinline controls preload="metadata" class="hidden"></video>
+      <div class="play-state hidden" id="position"></div>
+      <div class="video-overlay hidden" id="videoOverlay"><div class="video-title" id="videoTitle"></div><div class="video-meta" id="videoMeta"></div></div>
+      <div id="emptyFeed" class="empty" style="margin:35% auto"><div style="font-size:50px">🎞</div><strong>Seu feed começa aqui</strong>Adicione vídeos do YouTube ao lado. Os cortes renderizados aparecerão nesta tela.</div>
+    </div>
+    <div class="reactions">
+      <div class="reaction"><button class="arrow" id="prev" title="Voltar ao anterior">↑</button><span>Anterior</span></div>
+      <div class="reaction yes"><button class="btn circle" id="approve" title="Aprovar e publicar publicamente">♥</button><span>Publicar</span></div>
+      <div class="reaction no"><button class="btn circle" id="disapprove" title="Não aprovar e solicitar refação">👎</button><span>Refazer</span></div>
+      <div class="reaction"><button class="arrow" id="next" title="Avançar ao próximo">↓</button><span>Próximo</span></div>
+    </div>
+  </main>
+  <aside class="rightbar" id="rightbar">
+    <h3 class="panel-title">Adicionar vídeos</h3>
+    <p class="small">Cole um link do YouTube por linha (até 25 por envio). Pode adicionar quantos lotes desejar, respeitando o armazenamento disponível.</p>
+    <textarea id="links" class="input" rows="6" placeholder="https://youtu.be/...&#10;https://www.youtube.com/watch?v=..."></textarea>
+    <label class="small" style="display:flex;align-items:flex-start;gap:7px;margin:10px 0"><input type="checkbox" id="rights"/> Tenho autorização para usar e republicar estes vídeos.</label>
+    <button class="btn primary" id="addLinks">＋ Enviar para edição</button>
+    <div class="notice">O download direto do YouTube pode sofrer bloqueio anti-bot. Links de MP4 autorizados também são aceitos. Falhas serão mostradas abaixo, sem fingir que foram processadas.</div>
+    <div class="line"></div>
+    <h3 class="panel-title" style="font-size:16px">Revisão deste corte</h3>
+    <div class="small" id="reviewStatus">Selecione um vídeo no feed.</div>
+    <div class="feedback">
+      <label class="small">O que precisa mudar?</label>
+      <textarea id="comment" class="input" placeholder="Ex.: mais contexto no começo, legenda maior, melhor imagem, mudar o gancho..."></textarea>
+      <button id="requestRemake" class="btn">👎 Desaprovar e solicitar nova versão</button>
+    </div>
+    <div class="line"></div>
+    <h3 class="panel-title" style="font-size:16px">Fila de processamento</h3>
+    <div id="sourceList"><span class="small">Nenhum link recebido.</span></div>
+    <button class="btn soft" id="refresh">↻ Atualizar feed e fila</button>
+  </aside>
+</div>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script>
+const $=id=>document.getElementById(id);let feed=[],current=0,changing=false,touchY=null;
+const req=async(url,options={})=>{const headers={'Accept':'application/json',...(options.body?{'Content-Type':'application/json','X-Autoclips-Action':'1'}:{})};const response=await fetch(url,{...options,headers:{...headers,...options.headers},credentials:'same-origin'});let data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||('Erro HTTP '+response.status));return data};
+const showToast=msg=>{const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(showToast.timeout);showToast.timeout=setTimeout(()=>t.classList.add('hidden'),4000)};
+function sourceState(s){const labels={queued:'Aguardando',importing:'Baixando/transcrevendo',rendering:'Editando os cortes',awaiting_review:'Pronto para revisar',failed:'Falha'};return labels[s]||s}
+function publishedState(s){const labels={queued:'Aprovado · na fila pública',publishing:'Publicando no YouTube...',published:'Publicado no YouTube',failed_review:'Falha de publicação · revisão necessária'};return labels[s]||'Aguardando aprovação'}
+function changeClip(n){if(!feed.length)return;current=(n+feed.length)%feed.length;renderClip()}
+function renderClip(){const v=$('player'),item=feed[current];if(!item){v.pause();v.removeAttribute('src');v.classList.add('hidden');$('videoOverlay').classList.add('hidden');$('position').classList.add('hidden');$('emptyFeed').classList.remove('hidden');$('reviewStatus').textContent='Selecione um vídeo no feed.';return;}
+ $('emptyFeed').classList.add('hidden');v.classList.remove('hidden');$('videoOverlay').classList.remove('hidden');$('position').classList.remove('hidden');
+ v.pause();v.src=item.mediaUrl;v.load();$('position').textContent=(current+1)+' / '+feed.length;
+ $('videoTitle').textContent=item.project_name||'AutoClips · ClipCon';
+ $('videoMeta').textContent=Math.round(item.end-item.start)+'s · '+(item.publication_status?publishedState(item.publication_status):item.decision==='dislike'?'Reprovado · em revisão':'Aguardando aprovação');
+ $('reviewStatus').textContent=item.publication_status?publishedState(item.publication_status):(item.decision==='dislike'?'Reprovado':'Pendente');
+ $('comment').value=item.feedback||'';
+ $('approve').disabled=Boolean(item.publication_status);
+ $('approve').title=item.publication_status?'Esse corte já está na fila do YouTube':'Curtir para publicar publicamente';
+}
+async function refresh(){try{
+ const old=feed[current]?.id;
+ const [data,st,src]=await Promise.all([req('/api/console/feed'),req('/api/console/status'),req('/api/console/sources')]);
+ feed=data.clips;const ix=feed.findIndex(x=>x.id===old);current=ix>=0?ix:Math.min(current,Math.max(0,feed.length-1));renderClip();
+ $('used').innerHTML=st.quota.used+' <span style="font-size:17px;color:#a4abc0">/20</span>';
+ $('usedBar').style.width=Math.round(100*st.quota.used/20)+'%';
+ $('pending').textContent=st.quota.queued+' corte(s) esperando publicação';$('quotaTop').textContent=st.quota.used+' / 20 hoje';
+ $('channelLabel').textContent=st.youtube.connected?'● '+(st.youtube.channelName||'ClipCon'):'○ YouTube desconectado';
+ $('sourceList').innerHTML='';
+ for(const s of src.sources.slice(0,9)){const div=document.createElement('div');div.className='source';
+ const name=document.createElement('div');name.className='status '+(s.status==='failed'?'fail':s.status==='awaiting_review'?'ok':'');name.textContent=sourceState(s.status);
+ const detail=document.createElement('div');detail.className='small';detail.textContent=(s.source_kind==='youtube'?'YouTube':'MP4')+' · '+new Date(s.created_at).toLocaleString('pt-BR');
+ div.append(name,detail);
+ if(s.error){const e=document.createElement('div');e.className='small';e.textContent=s.error.slice(0,120);div.append(e)}
+ $('sourceList').append(div)}
+ if(!src.sources.length)$('sourceList').innerHTML='<span class="small">Nenhum link recebido.</span>';
+}catch(e){showToast('Falha ao atualizar: '+e.message)}}
+async function vote(decision){const item=feed[current];if(!item){showToast('Adicione um vídeo primeiro.');return}
+ if(decision==='like'&&item.publication_status){showToast('Este vídeo já está na fila/publicado.');return}
+ try{
+ const body={clip_id:item.id,decision,comment:$('comment').value.trim()};
+ const res=await req('/api/console/review',{method:'POST',body:JSON.stringify(body)});
+ if(decision==='like')showToast('♥ Aprovado! Publicação PÚBLICA colocada na fila.');
+ else showToast(res.action==='remake_queued'?'👎 Nova versão em produção.':'👎 Feedback salvo.');
+ await refresh();
+ }catch(e){showToast(e.message)}}
+async function boot(){const s=await req('/api/console/session');$('loginShell').classList.toggle('hidden',s.loggedIn);$('studio').classList.toggle('hidden',!s.loggedIn);if(s.loggedIn)await refresh()}
+$('loginCard').addEventListener('submit',async e=>{e.preventDefault();try{await req('/auth/login',{method:'POST',body:JSON.stringify({password:$('password').value})});$('password').value='';$('loginError').classList.add('hidden');await boot()}catch(err){$('loginError').textContent='Não foi possível entrar: '+err.message;$('loginError').classList.remove('hidden')}});
+$('logoutBtn').onclick=async()=>{await req('/auth/logout',{method:'POST',body:JSON.stringify({})});location.reload()};
+$('prev').onclick=()=>changeClip(-1);$('next').onclick=()=>changeClip(1);$('mobileNext').onclick=()=>changeClip(1);
+$('approve').onclick=()=>vote('like');$('disapprove').onclick=()=>vote('dislike');$('requestRemake').onclick=()=>vote('dislike');$('refresh').onclick=refresh;
+$('navSources').onclick=()=>$('links').focus();$('toggleSources').onclick=()=>$('links').scrollIntoView({behavior:'smooth'});
+$('addLinks').onclick=async()=>{if(!$('rights').checked){showToast('Confirme os direitos de uso e publicação.');return}
+ const links=$('links').value.trim();if(!links){showToast('Cole pelo menos um link.');return}
+ try{const res=await req('/api/console/links',{method:'POST',body:JSON.stringify({links,authorized:true})});const count=res.items.filter(x=>x.status==='queued').length;
+ showToast(count+' link(s) adicionado(s) à fila.');$('links').value='';await refresh()}catch(e){showToast('Erro: '+e.message)}};
+$('phoneFrame').addEventListener('wheel',e=>{if(Math.abs(e.deltaY)<8)return;e.preventDefault();if(changing)return;changing=true;changeClip(e.deltaY>0?1:-1);setTimeout(()=>changing=false,420)},{passive:false});
+$('phoneFrame').addEventListener('touchstart',e=>{touchY=e.touches[0].clientY},{passive:true});
+$('phoneFrame').addEventListener('touchend',e=>{if(touchY===null)return;const d=touchY-e.changedTouches[0].clientY;if(Math.abs(d)>60)changeClip(d>0?1:-1);touchY=null},{passive:true});
+document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;if(e.key==='ArrowDown'||e.key==='ArrowRight')changeClip(1);else if(e.key==='ArrowUp'||e.key==='ArrowLeft')changeClip(-1)});
+boot().catch(e=>showToast(e.message));setInterval(()=>{if(!$('studio').classList.contains('hidden'))refresh()},18000);
+</script>
+</body></html>

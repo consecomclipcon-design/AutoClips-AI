@@ -26,7 +26,7 @@ def import_local(filename: str, project_id: str) -> Path:
 
 
 YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
-MAX_SOURCE_SECONDS = 35 * 60
+MAX_SOURCE_SECONDS = 4 * 60 * 60  # podcasts longos: selecionar qualidade menor automaticamente
 MAX_SOURCE_BYTES = 180 * 1024 * 1024  # 500 MB Railway volume also holds intermediates.
 
 
@@ -59,75 +59,153 @@ def is_youtube_link(url: str) -> bool:
     return _youtube_id(url) is not None
 
 
-def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -> Path:
-    """Download a single approved video using the official yt-dlp extraction API.
+def _safe_pot_provider() -> str | None:
+    """Use only the fixed Railway internal provider; never allow user-supplied URLs."""
+    url = os.getenv("AUTOCLIPS_POT_PROVIDER_URL", "").strip()
+    if not url:
+        return None
+    p = urlparse(url)
+    if (p.scheme != "http" or p.hostname != "autoclips-pot-provider.railway.internal"
+            or p.port != 4416 or p.username or p.password or p.path not in ("", "/")
+            or p.query or p.fragment):
+        raise RuntimeError("Configuração do provedor de tokens inválida")
+    return url
 
-    Requires owner confirmation AND explicit deployment opt-in. No cookies,
-    credentials, private content, playlist or DRM bypass is attempted. A
-    direct authorized upload is the fallback when the source cannot be fetched.
+
+def _source_format(duration: float) -> str:
+    """Select quality to keep long originals inside our 180 MiB worker volume.
+
+    Filters prioritize muxed H.264+AAC streams; estimated sizes are not guaranteed.
+    Progress hooks enforce an additional hard cap while downloading.
     """
-    video_id = _youtube_id(url)
-    if not video_id:
-        raise ValueError("Envie URL HTTPS de um único vídeo do YouTube (11 caracteres)")
-    if not (owner_authorized and youtube_import_allowed()):
-        raise PermissionError("A importação está desabilitada: confirme direitos e ALLOW_YOUTUBE_IMPORT=true")
-    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", project_id):
-        raise ValueError("ID de projeto inválido")
-    try:
-        import yt_dlp
-    except ImportError as exc:
-        raise RuntimeError("yt-dlp não instalado no worker; verifique a imagem Docker") from exc
+    if duration > 75*60:
+        height = 360
+    elif duration > 35*60:
+        height = 480
+    else:
+        height = 720
+    # Unknown filesize ('?') still permitted; real download bytes remain capped.
+    return (
+        f"b[height<=?{height}][filesize<?150M]/"
+        f"b[height<=?{height}][filesize_approx<?150M]/"
+        f"bv*[height<=?{height}][filesize<?135M]+ba[filesize<?15M]/"
+        f"bv*[height<=?{height}][filesize_approx<?135M]+ba[filesize_approx<?15M]/"
+        f"b[height<=?360]/best[height<=?360]"
+    )
 
-    folder = (home() / "projects" / project_id).resolve()
-    folder.mkdir(parents=True, exist_ok=True)
-    # A temporary subdirectory protects against returning partial files.
-    temp_dir = folder / "_downloading"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    options = {
+
+def _youtube_options(temp_dir: Path, player_client: str, provider: str | None,
+                     duration: float = 900.0) -> dict:
+    if player_client not in {"mweb", "tv", "web_safari", "web_embedded"}:
+        raise ValueError("Cliente de download não autorizado")
+    args = {"youtube": {"player_client": [player_client]}}
+    if provider:
+        args["youtubepot-bgutilhttp"] = {"base_url": [provider]}
+
+    def cap_bytes(progress):
+        # Safe even for chunked manifests: abort if the file exceeds our volume budget.
+        downloaded = progress.get("downloaded_bytes")
+        if isinstance(downloaded, (int, float)) and downloaded > MAX_SOURCE_BYTES:
+            raise ValueError("O vídeo excedeu 180 MB; seleção automática de tamanho falhou")
+
+    return {
         "outtmpl": str(temp_dir / "source.%(ext)s"),
-        "format": "bv*[height<=1080][filesize_approx<180M]+ba/b[height<=1080]/best",
+        "format": _source_format(duration),
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": True,
-        "no_warnings": True,
-        "socket_timeout": 25,
-        "retries": 3,
-        "fragment_retries": 3,
+        "no_warnings": False,
+        "socket_timeout": 22,
+        "retries": 2,
+        "fragment_retries": 2,
         "concurrent_fragment_downloads": 2,
         "max_filesize": MAX_SOURCE_BYTES,
-        "js_runtimes": {"node": {"path": os.environ.get("YT_DLP_NODE_PATH", "/usr/local/bin/node")}},
+        "progress_hooks": [cap_bytes],
+        "extractor_args": args,
+        "js_runtimes": {"node": {"path": os.environ.get(
+            "YT_DLP_NODE_PATH", "/usr/local/bin/node")}},
         "ignoreerrors": False,
         "nooverwrites": False,
         "restrictfilenames": True,
         "windowsfilenames": True,
     }
-    canonical_url = "https://www.youtube.com/watch?v=" + video_id
+
+
+def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -> Path:
+    """Owner-authorized link-only ingest, with PO tokens and safe client fallback.
+
+    Never touches browser cookies and does not ask the owner for files.
+    Server-IP blocking may still prevent some public videos.
+    """
+    video_id = _youtube_id(url)
+    if not video_id:
+        raise ValueError("Envie URL HTTPS de um único vídeo do YouTube")
+    if not (owner_authorized and youtube_import_allowed()):
+        raise PermissionError("Importação não autorizada neste servidor")
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", project_id):
+        raise ValueError("ID de projeto inválido")
     try:
-        with yt_dlp.YoutubeDL(options) as downloader:
-            info = downloader.extract_info(canonical_url, download=False)
-            if not info or info.get("_type", "video") != "video":
-                raise ValueError("A URL não aponta para um único vídeo público")
-            duration = info.get("duration")
-            if not isinstance(duration, (int, float)) or duration <= 0 or duration > MAX_SOURCE_SECONDS:
-                raise ValueError("Duração da fonte inválida ou maior que 35 minutos")
-            filesize = info.get("filesize") or info.get("filesize_approx")
-            if isinstance(filesize, (int, float)) and filesize > MAX_SOURCE_BYTES:
-                raise ValueError("Arquivo maior que limite do worker de 180 MB")
-            downloader.download([canonical_url])
-        candidates = sorted((p for p in temp_dir.iterdir() if p.suffix.lower() in VALID_EXT and p.is_file()), key=lambda p: p.name)
-        if len(candidates) != 1 or candidates[0].stat().st_size == 0:
-            raise RuntimeError("Não foi possível gerar um único arquivo de vídeo completo")
-        if candidates[0].stat().st_size > MAX_SOURCE_BYTES:
-            raise ValueError("Arquivo excedeu limite local de 180 MB")
-        target = folder / ("source" + candidates[0].suffix.lower())
-        os.replace(candidates[0], target)
-        return target
-    except (ValueError, PermissionError):
-        raise
-    except Exception as exc:
-        raise RuntimeError("Falha ao importar o vídeo autorizado: " + str(exc) + ". Se o YouTube limitar a origem, envie o MP4 original pela API segura de upload.") from exc
-    finally:
+        import yt_dlp
+    except ImportError as exc:
+        raise RuntimeError("yt-dlp não instalado no Railway") from exc
+
+    provider = _safe_pot_provider()
+    folder = (home() / "projects" / project_id).resolve()
+    folder.mkdir(parents=True, exist_ok=True)
+    temp_dir = folder / "_downloading"
+    canonical_url = "https://www.youtube.com/watch?v=" + video_id
+    errors = []
+    # mweb with official yt-dlp plugin's external PO-token provider first;
+    # alternative clients handle videos that do not work with mweb.
+    for client in ("mweb", "tv", "web_safari", "web_embedded"):
         shutil.rmtree(temp_dir, ignore_errors=True)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        opts = _youtube_options(temp_dir, client, provider)
+        try:
+            with yt_dlp.YoutubeDL(opts) as downloader:
+                info = downloader.extract_info(canonical_url, download=False)
+                if not info or info.get("_type", "video") != "video":
+                    raise RuntimeError("Vídeo indisponível para importação")
+                duration = info.get("duration")
+                if not isinstance(duration, (int, float)) or duration <= 0:
+                    raise RuntimeError("Não foi possível obter a duração do vídeo")
+                if duration > MAX_SOURCE_SECONDS:
+                    raise ValueError("Vídeo maior que 4 horas; análise em partes necessária")
+                downloader.params["format"] = _source_format(float(duration))
+                # Allow the downloader to pick an economical format itself,
+                # avoiding the original's 1GB+ best-quality representation.
+                filesize = info.get("filesize") or info.get("filesize_approx")
+                if (isinstance(filesize, (int, float)) and filesize > MAX_SOURCE_BYTES
+                        and not info.get("formats")):
+                    raise RuntimeError("Nenhuma versão menor do vídeo disponível")
+                rc = downloader.download([canonical_url])
+                if rc != 0:
+                    raise RuntimeError("Download não finalizado")
+            files = sorted(p for p in temp_dir.iterdir()
+                           if p.suffix.lower() in VALID_EXT and p.is_file())
+            if len(files) != 1 or files[0].stat().st_size == 0:
+                raise RuntimeError("MP4 final ausente após download")
+            if files[0].stat().st_size > MAX_SOURCE_BYTES:
+                raise RuntimeError("Fonte acima do limite de 180 MB")
+            target = folder / ("source" + files[0].suffix.lower())
+            os.replace(files[0], target)
+            print("AUTOCLIPS_SOURCE_IMPORTED", video_id, client,
+                  "bytes", target.stat().st_size, flush=True)
+            return target
+        except (PermissionError, ValueError):
+            raise
+        except Exception as exc:
+            # Log only client names and exception types; never token URLs.
+            print("AUTOCLIPS_SOURCE_STRATEGY_FAILED", video_id, client,
+                  type(exc).__name__, flush=True)
+            errors.append((client, type(exc).__name__))
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    raise RuntimeError(
+        "Download do YouTube bloqueado mesmo após tentar provedores de token "
+        "e clientes alternativos. Estratégias: " +
+        ", ".join(name for name, _ in errors) + "."
+    )
 
 
 def probe(path: Path) -> dict:

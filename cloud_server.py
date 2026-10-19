@@ -15,7 +15,7 @@ from starlette.responses import JSONResponse, PlainTextResponse, RedirectRespons
 from starlette.routing import Mount, Route
 
 from autoclips.cloud_auth import BearerGate
-from autoclips import oauth_web
+from autoclips import oauth_web, dashboard, demo_ingest
 from autoclips.upload_http import upload_media
 from autoclips.api_http import create_project, status_job
 from server import mcp
@@ -77,6 +77,7 @@ async def lifespan(app):
     diagnostics = oauth_web.safe_diagnostics()
     # Safe, non-secret diagnostic (no OAuth codes, tokens or client secret).
     print("AUTOCLIPS_OAUTH_PREFLIGHT " + json.dumps(diagnostics), flush=True)
+    dashboard.start_background_worker()
     async with mcp.session_manager.run():
         yield
 
@@ -86,6 +87,17 @@ async def lifespan(app):
 inner = Starlette(
     routes=[
         Route("/health", health, methods=["GET"]),
+        Route("/app", dashboard.app_page, methods=["GET"]),
+        Route("/auth/login", dashboard.login, methods=["POST"]),
+        Route("/auth/logout", dashboard.logout, methods=["POST"]),
+        Route("/auth/session", dashboard.session, methods=["GET"]),
+        Route("/api/console/status", dashboard.status, methods=["GET"]),
+        Route("/api/console/feed", dashboard.feed, methods=["GET"]),
+        Route("/api/console/media/{clip_id}", dashboard.media, methods=["GET"]),
+        Route("/api/console/links", dashboard.add_links, methods=["POST"]),
+        Route("/api/console/sources", dashboard.sources, methods=["GET"]),
+        Route("/api/console/review", dashboard.review, methods=["POST"]),
+        Route("/internal/approved-demo", demo_ingest.receive_demo, methods=["POST", "GET"]),
         Route("/oauth/youtube/start", youtube_oauth_start, methods=["GET"]),
         Route("/oauth/youtube/callback", youtube_oauth_callback, methods=["GET"]),
         Route("/api/youtube/status", youtube_connection_status, methods=["GET"]),

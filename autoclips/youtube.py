@@ -17,6 +17,10 @@ def token_file() -> Path:
 
 
 def _save_creds(creds) -> None:
+    from . import oauth_web
+    if oauth_web.has_connection():
+        oauth_web.save_refreshed_credentials(creds)
+        return
     path = token_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(creds.to_json(), encoding="utf-8")
@@ -39,9 +43,14 @@ def client():
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
     from googleapiclient.discovery import build
-    if not token_file().is_file():
-        raise RuntimeError("Canal não conectado. Execute python -m autoclips.youtube_auth neste computador.")
-    creds = Credentials.from_authorized_user_file(str(token_file()), scopes=SCOPES)
+    from . import oauth_web
+    if oauth_web.has_connection():
+        stored = oauth_web.read_connection()
+        creds = Credentials.from_authorized_user_info(stored["credentials"], scopes=SCOPES)
+    else:
+        if not token_file().is_file():
+            raise RuntimeError("Canal não conectado. Acesse /oauth/youtube/start para autorizar no Railway.")
+        creds = Credentials.from_authorized_user_file(str(token_file()), scopes=SCOPES)
     if not creds.valid:
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -57,6 +66,11 @@ def channel() -> dict:
     if len(channels) != 1:
         raise RuntimeError("Conta sem canal identificável. Reconecte escolhendo o canal correto.")
     c = channels[0]
+    from . import oauth_web
+    if oauth_web.has_connection():
+        pinned = oauth_web.read_connection()["channel_id"]
+        if c["id"] != pinned:
+            raise RuntimeError("Canal OAuth diferente do autorizado. Upload bloqueado.")
     return {"id": c["id"], "name": c.get("snippet", {}).get("title", "Canal sem nome")}
 
 

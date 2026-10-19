@@ -56,6 +56,20 @@ def _db_init():
           created_at TEXT NOT NULL, remake_clip_id TEXT
         );
         """)
+        # One-time automatic retry of previously bot-blocked YouTube links after
+        # deploying the new private POT provider. No user resubmission needed.
+        columns = {col["name"] for col in c.execute("PRAGMA table_info(dashboard_sources)")}
+        if "auto_retry_count" not in columns:
+            c.execute("ALTER TABLE dashboard_sources ADD COLUMN auto_retry_count INTEGER NOT NULL DEFAULT 0")
+        c.execute("""UPDATE dashboard_sources
+                     SET status='queued', error=NULL, project_id=NULL, job_id=NULL,
+                         auto_retry_count=auto_retry_count+1, updated_at=?
+                     WHERE source_kind='youtube' AND status='failed'
+                       AND auto_retry_count=0
+                       AND (lower(coalesce(error,'')) LIKE '%not a bot%'
+                            OR lower(coalesce(error,'')) LIKE '%sign in to confirm%'
+                            OR lower(coalesce(error,'')) LIKE '%youtube bloqueou%')
+                  """, (db.now(),))
 
 
 def _secret() -> bytes:
@@ -360,9 +374,10 @@ def _tick():
                 original_error = str(job.get("error") or "import_failed")
                 if ("not a bot" in original_error.lower() or
                     "sign in to confirm" in original_error.lower()):
-                    original_error = ("O YouTube bloqueou o download no servidor. "
-                                      "Envie um MP4 de origem autorizado, comprimido "
-                                      "para no máximo 180 MB, usando 'Enviar vídeo original'.")
+                    original_error = ("O YouTube bloqueou a fonte mesmo usando os clientes "
+                                      "alternativos. A falha ficará registrada; nenhum Short "
+                                      "falso será produzido. O sistema não precisa que você "
+                                      "envie arquivos manualmente.")
                 with db.conn() as c:
                     c.execute("""UPDATE dashboard_sources SET status='failed',error=?,
                                  updated_at=? WHERE id=?""",

@@ -1,0 +1,61 @@
+name: Check official Piped free relay (non-production)
+on:
+  push:
+    paths: [".github/workflows/verify-free-piped-relay.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Probe official current Piped APIs for a real media stream
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.parse,urllib.error
+          VIDEO="NmjiNtvSkFk"
+          HOSTS=["pipedapi.kavin.rocks","pipedapi.leptons.xyz","pipedapi-libre.kavin.rocks",
+                 "pipedapi.adminforge.de","api.piped.yt","pipedapi.ducks.party",
+                 "api.piped.private.coffee"]
+          for host in HOSTS:
+              try:
+                  req=urllib.request.Request(f"https://{host}/streams/{VIDEO}",headers={
+                      "Accept":"application/json","User-Agent":"AutoClips research (single video, 2026)"})
+                  with urllib.request.urlopen(req,timeout=15) as res:
+                      ct=res.headers.get("Content-Type","")
+                      chunk=res.read(450000)
+                  if "json" not in ct:
+                      print("PIPED",host,"NOT_JSON",ct[:30]);continue
+                  data=json.loads(chunk)
+                  streams=data.get("videoStreams",[])
+                  print("PIPED",host,"METADATA",
+                        "title",str(data.get("title",""))[:35],"streams",len(streams),
+                        "error",str(data.get("message",""))[:45])
+                  if not streams: continue
+                  # Only use URL if its host is the trusted official instance
+                  # (or a transparent proxy subdomain thereof) and it has video data.
+                  candidate=next((x for x in streams if x.get("url") and x.get("mimeType","").startswith("video/")),None)
+                  if not candidate:
+                      continue
+                  url=candidate["url"]
+                  parsed=urllib.parse.urlparse(url)
+                  if parsed.scheme!="https" or not parsed.hostname:
+                      continue
+                  print("PIPED",host,"STREAM_HOST",parsed.hostname,
+                        "proxy",not parsed.hostname.endswith(".googlevideo.com"))
+                  if parsed.hostname.endswith(".googlevideo.com"):
+                      print("PIPED",host,"DIRECT_GOOGLEVIDEO_NOT_TESTED");continue
+                  headers={"Range":"bytes=0-131071","User-Agent":"AutoClips research (bounded media check)"}
+                  with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=18) as media:
+                      mime=media.headers.get("Content-Type","")
+                      payload=media.read(131072)
+                  print("PIPED",host,"MEDIA",mime,len(payload),payload[4:8]==b"ftyp")
+                  if len(payload)>2048 and ("video" in mime or "octet-stream" in mime):
+                      print("FREE_MEDIA_PARTIAL_STREAM_PROVED",host)
+                      break
+              except Exception as ex:
+                  print("PIPED",host,"FAILED",type(ex).__name__,str(ex)[:65])
+          else:
+              print("RESULT NO_OFFICIAL_PIPED_RELAY_VALIDATED")
+          PY

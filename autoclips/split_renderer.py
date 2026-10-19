@@ -140,9 +140,12 @@ def render_split(*, source: str | Path, words: list[dict],start: float,end: floa
                         '-ss',str(start),'-i',str(src),'-frames:v','1',str(img)],
                        capture_output=True,text=True,check=True)
     fc=build_filters(ass.name,focal_x,size)
-    cmd=['ffmpeg','-hide_banner','-loglevel','error','-y','-ss',str(start),'-i',str(src),
+    cmd=['ffmpeg','-hide_banner','-loglevel','error','-y',
+         '-filter_complex_threads','1','-threads','1',
+         '-ss',str(start),'-i',str(src),
          '-loop','1','-i',str(img),'-t',str(end-start),'-filter_complex',fc,
-         '-map','[vout]','-map','0:a?','-c:v','libx264','-preset','ultrafast','-crf','24',
+         '-map','[vout]','-map','0:a?','-c:v','libx264','-preset','ultrafast',
+         '-threads','1','-crf','24',
          '-pix_fmt','yuv420p','-c:a','aac','-b:a','128k','-movflags','+faststart','-shortest',str(out)]
     subprocess.run(cmd,cwd=str(out.parent),capture_output=True,text=True,check=True)
     return {'output':str(out),'duration':round(end-start,2),'dimensions':f'{size[0]}x{size[1]}',

@@ -61,7 +61,7 @@ def _db_init():
         columns = {col["name"] for col in c.execute("PRAGMA table_info(dashboard_sources)")}
         if "auto_retry_count" not in columns:
             c.execute("ALTER TABLE dashboard_sources ADD COLUMN auto_retry_count INTEGER NOT NULL DEFAULT 0")
-        c.execute("""UPDATE dashboard_sources
+        retried = c.execute("""UPDATE dashboard_sources
                      SET status='queued', error=NULL, project_id=NULL, job_id=NULL,
                          auto_retry_count=auto_retry_count+1, updated_at=?
                      WHERE source_kind='youtube' AND status='failed'
@@ -71,6 +71,8 @@ def _db_init():
                             OR lower(coalesce(error,'')) LIKE '%youtube bloqueou%'
                             OR lower(coalesce(error,'')) LIKE '%download do youtube bloqueado%')
                   """, (db.now(),))
+        if retried.rowcount:
+            print("AUTOCLIPS_AUTO_RETRY_ENQUEUED", retried.rowcount, flush=True)
 
 
 def _secret() -> bytes:
@@ -355,6 +357,7 @@ def _tick():
                          ORDER BY created_at LIMIT 1""").fetchone() if not active else None
     if row:
         try:
+            print("AUTOCLIPS_SOURCE_QUEUE_START", row["id"], row["source_kind"], flush=True)
             res=pipeline.new_project(row["link"],source_kind=row["source_kind"],
                                      authorized=True,auto_transcribe=True)
             with db.conn() as c:

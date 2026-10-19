@@ -17,7 +17,9 @@ class BearerGate:
         self.token = token
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and scope.get("path") != "/health":
+        oauth_public = (scope.get("path") in {"/oauth/youtube/start", "/oauth/youtube/callback"}
+                        and scope.get("method") == "GET")
+        if scope["type"] == "http" and scope.get("path") != "/health" and not oauth_public:
             auths = [v for k, v in scope.get("headers", []) if k.lower() == b"authorization"]
             expected = f"Bearer {self.token}".encode("utf-8")
             allowed = len(auths) == 1 and hmac.compare_digest(auths[0], expected)

@@ -142,3 +142,57 @@ def probe(path: Path) -> dict:
     if duration <= 0:
         raise ValueError("Duração do vídeo inválida")
     return {"duration": duration, "width": streams[0].get("width"), "height": streams[0].get("height")}
+
+
+def import_hosted_approved(url: str, project_id: str, owner_authorized: bool) -> Path:
+    """Import a video from a trusted HTTPS media host when YouTube challenges cloud IPs.
+
+    The URL is never logged. No redirects, cookies, private IPs or arbitrary
+    URLs are allowed. The owner must authorize the import.
+    """
+    import urllib.request
+    if not owner_authorized:
+        raise PermissionError('É necessária autorização para importar a mídia')
+    u = urlparse(url)
+    if (u.scheme != 'https' or u.hostname != 'storage.googleapis.com'
+            or u.port not in (None, 443) or u.username or u.password or not u.path.endswith('.mp4')):
+        raise ValueError('URL HTTPS de origem autorizada inválida')
+    if not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', project_id):
+        raise ValueError('ID do projeto inválido')
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise ValueError('Redirecionamento não autorizado')
+
+    folder = home() / 'projects' / project_id
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / 'source.mp4.part'
+    final = folder / 'source.mp4'
+    try:
+        opener = urllib.request.build_opener(NoRedirect())
+        request = urllib.request.Request(url, headers={'User-Agent': 'AutoClipsAI/0.8'})
+        with opener.open(request, timeout=45) as response:
+            if getattr(response, 'status', 200) != 200:
+                raise ValueError('A origem de vídeo não retornou HTTP 200')
+            size = response.headers.get('Content-Length')
+            if size and int(size) > MAX_SOURCE_BYTES:
+                raise ValueError('Arquivo maior que limite de tamanho do worker')
+            mime = response.headers.get('Content-Type', '').split(';', 1)[0].lower()
+            if mime not in ('video/mp4', 'application/octet-stream', ''):
+                raise ValueError('A origem não retornou um MP4')
+            count = 0
+            with tmp.open('wb') as fd:
+                while True:
+                    chunk = response.read(1024 * 512)
+                    if not chunk:
+                        break
+                    count += len(chunk)
+                    if count > MAX_SOURCE_BYTES:
+                        raise ValueError('Arquivo maior que limite de tamanho do worker')
+                    fd.write(chunk)
+        if count < 16:
+            raise ValueError('Arquivo de vídeo vazio ou incompleto')
+        os.replace(tmp, final)
+        return final
+    finally:
+        tmp.unlink(missing_ok=True)

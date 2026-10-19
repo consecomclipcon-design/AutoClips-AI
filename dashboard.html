@@ -70,6 +70,11 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
     <button class="btn primary" id="addLinks">＋ Enviar para edição</button>
     <div class="notice">O download direto do YouTube pode sofrer bloqueio anti-bot. Links de MP4 autorizados também são aceitos. Falhas serão mostradas abaixo, sem fingir que foram processadas.</div>
     <div class="line"></div>
+    <h3 class="panel-title" style="font-size:16px">Short pronto (MP4)</h3>
+    <p class="small">Se já tiver o Short editado, envie-o diretamente. Ele aparecerá no feed para você aprovar e publicar.</p>
+    <input id="readyFile" type="file" accept="video/mp4,.mp4" class="input" aria-label="Selecionar MP4 pronto"/>
+    <button class="btn" id="uploadReady">⬆ Importar MP4 pronto</button>
+    <div class="line"></div>
     <h3 class="panel-title" style="font-size:16px">Revisão deste corte</h3>
     <div class="small" id="reviewStatus">Selecione um vídeo no feed.</div>
     <div class="feedback">
@@ -134,6 +139,22 @@ $('logoutBtn').onclick=async()=>{await req('/auth/logout',{method:'POST',body:JS
 $('prev').onclick=()=>changeClip(-1);$('next').onclick=()=>changeClip(1);$('mobileNext').onclick=()=>changeClip(1);
 $('approve').onclick=()=>vote('like');$('disapprove').onclick=()=>vote('dislike');$('requestRemake').onclick=()=>vote('dislike');$('refresh').onclick=refresh;
 $('navSources').onclick=()=>$('links').focus();$('toggleSources').onclick=()=>$('links').scrollIntoView({behavior:'smooth'});
+$('uploadReady').onclick=async()=>{
+ const file=$('readyFile').files[0];if(!file){showToast('Escolha um MP4 antes.');return}
+ if(file.size>180*1024*1024||file.size<1000){showToast('MP4 precisa ter de 1KB a 180MB.');return}
+ $('uploadReady').disabled=true;$('uploadReady').textContent='Enviando vídeo...';
+ try{
+   const resp=await fetch('/api/console/upload-ready',{method:'POST',
+     credentials:'same-origin',headers:{'Content-Type':'video/mp4',
+     'X-Autoclips-Action':'1'},body:file});
+   const result=await resp.json().catch(()=>({}));
+   if(!resp.ok)throw Error(result.error||('HTTP '+resp.status));
+   showToast('MP4 no feed! Revise e clique no coração para publicar.');
+   $('readyFile').value='';
+   await refresh();
+ }catch(e){showToast('Falha no envio: '+e.message)}
+ finally{$('uploadReady').disabled=false;$('uploadReady').textContent='⬆ Importar MP4 pronto'}
+};
 $('addLinks').onclick=async()=>{if(!$('rights').checked){showToast('Confirme os direitos de uso e publicação.');return}
  const links=$('links').value.trim();if(!links){showToast('Cole pelo menos um link.');return}
  try{const res=await req('/api/console/links',{method:'POST',body:JSON.stringify({links,authorized:true})});const count=res.items.filter(x=>x.status==='queued').length;

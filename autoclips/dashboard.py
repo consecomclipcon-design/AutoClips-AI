@@ -623,6 +623,77 @@ def _queue_one_approved_chat_source():
         print("AUTOCLIPS_CHAT_PRIVATE_TEST_DEFERRED",type(exc).__name__,flush=True)
 
 
+def _queue_approved_muzy_private_upload() -> None:
+    """Owner-authorised, one-time PRIVATE upload of exactly one reviewed Short.
+
+    This routine is inert until a deployment owner explicitly sets the exact
+    clip ID in AUTOCLIPS_MUZY_PRIVATE_APPROVED_CLIP. Do not read approvals
+    from source titles, auto-generated QA, or an unrelated publication.
+    """
+    approved_id = os.getenv("AUTOCLIPS_MUZY_PRIVATE_APPROVED_CLIP", "")
+    if approved_id != "clip_997b8722083c":
+        return
+    try:
+        clip = db.one("clips", approved_id)
+        if clip["status"] != "ready" or not clip.get("path"):
+            raise ValueError("approved_clip_not_ready")
+        with db.conn() as c:
+            owner_source = c.execute("""SELECT s.original_video_id, s.title FROM dashboard_sources s
+                WHERE s.project_id=? AND s.original_video_id=?
+                LIMIT 1""", (clip["project_id"], "cbmRw1Y9QPQ")).fetchone()
+        if not owner_source:
+            raise PermissionError("approved_source_mismatch")
+        path = Path(clip["path"]).resolve()
+        if (not path.is_file() or path.is_symlink() or
+                path.name != approved_id + ".mp4" or path.stat().st_size < 100_000):
+            raise ValueError("rendered_video_missing_or_incomplete")
+        qa_path = path.with_suffix(".qa.json")
+        if not qa_path.is_file() or qa_path.is_symlink():
+            raise ValueError("quality_report_missing")
+        qa = json.loads(qa_path.read_text(encoding="utf-8"))
+        if not (qa.get("auto_publish_ready") is True
+                and qa.get("language") == "pt"
+                and qa.get("caption_events", 0) >= 15
+                and qa.get("layout") == "top_video_middle_captions_bottom_image"
+                and qa.get("image_mode") in ("wikimedia_public_domain",
+                                             "wikimedia_cc_by", "owner_provided")):
+            raise ValueError("approved_clip_quality_gate_failed")
+        # Inspect the MP4 itself, not just QA sidecar metadata.
+        import subprocess
+        check = subprocess.run(
+            ["ffprobe", "-v", "error",
+             "-show_entries", "format=duration:stream=codec_type,width,height",
+             "-of", "json", str(path)],
+            capture_output=True, text=True, timeout=15, check=True)
+        media = json.loads(check.stdout)
+        streams = media.get("streams", [])
+        duration = float(media.get("format", {}).get("duration", 0))
+        if (not 8 <= duration <= 180
+                or not any(s.get("codec_type") == "video"
+                           and s.get("width") == 540 and s.get("height") == 960
+                           for s in streams)
+                or not any(s.get("codec_type") == "audio" for s in streams)):
+            raise ValueError("approved_clip_mp4_streams_invalid")
+        caption = "Qual suplemento tomar? Muzy responde | AutoClips #Shorts"
+        description = (
+            "Corte em português gerado com vídeo real, legendas e foto "
+            "contextual. Fonte: https://www.youtube.com/watch?v=cbmRw1Y9QPQ\n"
+            "Publicação privada autorizada pelo responsável pelo vídeo. #Shorts"
+            + _image_attribution(qa))
+        status = enqueue_publication(
+            approved_id, title=caption, description=description[:5000],
+            explicitly_approved=True, privacy="private")
+        if status.get("status") == "queued":
+            if not getattr(_queue_approved_muzy_private_upload, "_logged_queued", False):
+                print("AUTOCLIPS_MUZY_PRIVATE_APPROVED_QUEUED", approved_id, flush=True)
+                _queue_approved_muzy_private_upload._logged_queued = True
+    except Exception as exc:
+        if not getattr(_queue_approved_muzy_private_upload, "_logged_error", False):
+            print("AUTOCLIPS_MUZY_PRIVATE_APPROVED_BLOCKED",
+                  type(exc).__name__, str(exc)[:160], flush=True)
+            _queue_approved_muzy_private_upload._logged_error = True
+
+
 def _tick():
     _db_init()
     # Start at most one source import at a time; the CPU only has two render workers.
@@ -716,6 +787,7 @@ def _tick():
                      WHERE r.source_id=dashboard_sources.id AND r.status='queued')""",(db.now(),))
     _queue_one_nasa_private_validation()
     _queue_one_approved_chat_source()
+    _queue_approved_muzy_private_upload()
     publish_next()
 
 

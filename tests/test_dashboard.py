@@ -145,6 +145,25 @@ def test_login_ui_api_route_contract_and_existing_tab_compatibility(working):
         assert c.get("/api/console/session").json() == {"loggedIn":True}
 
 
+def test_cleanup_deletes_only_orphaned_failed_hosted_media(working):
+    from autoclips.settings import home
+    first="prj_failed_vidiq"
+    second="prj_good_vidiq"
+    a=home()/"projects"/first
+    b=home()/"projects"/second
+    a.mkdir(parents=True); b.mkdir(parents=True)
+    (a/"source.mp4").write_bytes(b"failed-video-copy")
+    (b/"source.mp4").write_bytes(b"ready-video-copy")
+    with db.conn() as c:
+        for ident,path,status in ((first,a,"transcription_failed"),(second,b,"ready")):
+            c.execute("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?)",
+                      (ident,"hosted","https://storage.googleapis.com/review/test.mp4",
+                       "Test",str(path/"source.mp4"),None,60,status,None,db.now()))
+    assert dashboard._prune_failed_hosted_imports() == len(b"failed-video-copy")
+    assert not (a/"source.mp4").exists()
+    assert (b/"source.mp4").exists()
+
+
 def test_approved_vidiq_manifest_queues_only_review_sources(working,monkeypatch):
     import json
     manifest=[{

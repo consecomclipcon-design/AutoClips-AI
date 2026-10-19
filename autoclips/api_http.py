@@ -25,7 +25,7 @@ async def create_project(request):
     auto = data.get('auto_transcribe', True) is True
     if not isinstance(source, str) or len(source) > 2048 or not source:
         return JSONResponse({'error': 'invalid_source'}, status_code=400)
-    if kind not in {'file', 'youtube'}:
+    if kind not in {'file', 'youtube', 'hosted'}:
         return JSONResponse({'error': 'invalid_source_kind'}, status_code=400)
     try:
         result = pipeline.new_project(source, source_kind=kind, authorized=approved, auto_transcribe=auto)

@@ -1,6 +1,6 @@
 """Licensed context photography for the lower half of a Portuguese Short.
 
-Only Wikimedia Commons files explicitly marked CC0/public-domain are used
+Only verified Wikimedia Commons CC0/public-domain or CC BY 4.0 files are used
 automatically. Search names must match the topic. A missing match is NOT an
 excuse to download arbitrary images or mislabel a source frame as a real photo.
 """
@@ -8,8 +8,9 @@ from __future__ import annotations
 import json
 import re
 import html
+import hashlib
 from pathlib import Path
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urlparse, quote
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 STOP = {
@@ -76,28 +77,63 @@ def choose_public_domain_image(payload: dict, title: str) -> dict | None:
     return matches[0][1] if matches else None
 
 
+def curated_context_image(title: str) -> dict | None:
+    """Small vetted fallback for Portuguese sports/supplement stories.
+
+    Photographs and their licences were verified against the Commons file
+    pages. Source + attribution travel with the MP4; a generic title never
+    authorises an unrelated person's portrait. Use original file URLs with
+    deterministic MD5 paths, not unaudited search thumbnails.
+    """
+    topic = title.casefold()
+    if "olympia" in topic and ("ramon" in topic or "depois" in topic or "2026" in topic):
+        filename = "Ramon_Dino_shows_his_Mr._Olympia_trophy_(2025).jpg"
+        lic = "cc by 4.0"
+        credit = "Foto ilustrativa de 2025: FotografoWallacyFerrari (CC BY 4.0)"
+        licence_url = "https://creativecommons.org/licenses/by/4.0/"
+    elif "suplement" in topic or "whey" in topic or "creatina" in topic:
+        filename = "Bodybuilding_supplement_high_protein_drink_mix_700g.jpg"
+        lic = "public domain"
+        credit = "Imagem ilustrativa: Mike1024 (domínio público)"
+        licence_url = ""
+    else:
+        return None
+    digest = hashlib.md5(filename.encode("utf-8")).hexdigest()
+    return {
+        "url": ("https://upload.wikimedia.org/wikipedia/commons/" +
+                digest[0] + "/" + digest[:2] + "/" + quote(filename, safe="()")),
+        "title": "File:" + filename.replace("_", " "),
+        "license": lic,
+        "credit": credit,
+        "source_page": "https://commons.wikimedia.org/wiki/File:" + quote(filename, safe="()"),
+        "license_url": licence_url,
+    }
+
+
 def fetch_public_domain_image(title: str, destination: Path) -> dict | None:
     """Fetch a size-limited, licensed photo. Failure means no external image."""
     terms = topic_terms(title)
     if not terms:
         return None
     opener = build_opener(NoRedirect())
-    params = {
-        "action": "query", "format": "json", "generator": "search",
-        "gsrsearch": " ".join(terms[:2]), "gsrnamespace": "6", "gsrlimit": "20",
-        "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": "1080"
-    }
+    choice = curated_context_image(title)
     try:
-        req = Request(API + "?" + urlencode(params), headers={"User-Agent": UA})
-        with opener.open(req, timeout=8) as response:
-            if int(response.headers.get("content-length") or 0) > 256_000:
+        if choice is None:
+            params = {
+                "action": "query", "format": "json", "generator": "search",
+                "gsrsearch": " ".join(terms[:2]), "gsrnamespace": "6", "gsrlimit": "20",
+                "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": "1080"
+            }
+            req = Request(API + "?" + urlencode(params), headers={"User-Agent": UA})
+            with opener.open(req, timeout=8) as response:
+                if int(response.headers.get("content-length") or 0) > 256_000:
+                    return None
+                raw = response.read(256_001)
+            if len(raw) > 256_000:
                 return None
-            raw = response.read(256_001)
-        if len(raw) > 256_000:
-            return None
-        choice = choose_public_domain_image(json.loads(raw), title)
-        if not choice:
-            return None
+            choice = choose_public_domain_image(json.loads(raw), title)
+            if not choice:
+                return None
         req = Request(choice["url"], headers={"User-Agent": UA})
         with opener.open(req, timeout=15) as response:
             if int(response.headers.get("content-length") or 0) > 7_000_000:

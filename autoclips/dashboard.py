@@ -61,6 +61,10 @@ def _db_init():
           source_id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
           status TEXT NOT NULL, clip_id TEXT, created_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS dashboard_image_repairs(
+          source_id TEXT PRIMARY KEY, old_clip_id TEXT NOT NULL,
+          new_clip_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL
+        );
         """)
         # Retry a bot-blocked link once for each materially new download
         # strategy. Normal UI reads and process restarts never burn retries.
@@ -861,12 +865,79 @@ def _queue_one_portuguese_quality_retest():
         print("AUTOCLIPS_PT_QUALITY_RETEST_DEFERRED",type(exc).__name__,flush=True)
 
 
+def _queue_one_missing_context_photo_repair() -> None:
+    """Once per source, re-render a verified PT preview with a licensed photo.
+
+    Keep original clips and approvals untouched; this is a review render,
+    never a publication. Atomic DB claim and a single active worker prevent
+    duplicate concurrent renders if the service restarts.
+    """
+    if os.getenv("AUTOCLIPS_PT_IMAGE_REPAIR") != "true":
+        return
+    import shutil
+    if shutil.disk_usage(home()).free < 225 * 1024 * 1024:
+        return
+    _db_init()
+    with db.conn() as c:
+        active=c.execute("""SELECT count(*) FROM dashboard_sources
+                           WHERE status IN ('importing','rendering')""").fetchone()[0]
+        running=c.execute("""SELECT count(*) FROM jobs WHERE status IN ('queued','running')""").fetchone()[0]
+        if active or running:
+            return
+        row=c.execute("""SELECT s.id AS source_id,s.project_id,k.id AS old_clip_id,
+                                k.start AS cut_start,k.end AS cut_end,k.path
+            FROM dashboard_sources s
+            JOIN dashboard_quality_retests q ON q.source_id=s.id
+            JOIN clips k ON k.id=q.clip_id
+            WHERE s.status='awaiting_review' AND k.status='ready'
+              AND s.original_video_id IN ('e2Mou7KYXyo','cbmRw1Y9QPQ')
+              AND NOT EXISTS(SELECT 1 FROM dashboard_image_repairs repair
+                             WHERE repair.source_id=s.id)
+            ORDER BY CASE s.original_video_id
+                      WHEN 'e2Mou7KYXyo' THEN 0 ELSE 1 END LIMIT 1""").fetchone()
+    if not row:
+        return
+    path=Path(row["path"] or "")
+    qa_path=path.with_suffix(".qa.json")
+    try:
+        qa=json.loads(qa_path.read_text(encoding="utf-8")) if qa_path.is_file() else {}
+        if qa.get("language") != "pt" or qa.get("image_mode") != "source_frame_preview_only":
+            return
+        if not qa.get("caption_events", 0):
+            return
+        with db.conn() as c:
+            claimed=c.execute("""INSERT OR IGNORE INTO dashboard_image_repairs
+                (source_id,old_clip_id,status,created_at) VALUES (?,?,?,?)""",
+                (row["source_id"],row["old_clip_id"],"claimed",db.now())).rowcount
+        if not claimed:
+            return
+        render_job=pipeline.start_render_split(
+            row["project_id"],float(row["cut_start"]),float(row["cut_end"]))
+        with db.conn() as c:
+            c.execute("""UPDATE dashboard_image_repairs
+                         SET new_clip_id=?,status='rendering' WHERE source_id=?""",
+                      (render_job["clip_id"],row["source_id"]))
+            c.execute("""INSERT OR IGNORE INTO dashboard_renders
+                (clip_id,source_id,job_id,status,created_at)
+                VALUES (?,NULL,?,'queued',?)""",
+                (render_job["clip_id"],render_job["job_id"],db.now()))
+        print("AUTOCLIPS_CONTEXT_IMAGE_REPAIR_QUEUED",row["source_id"],
+              render_job["clip_id"],flush=True)
+    except Exception as exc:
+        print("AUTOCLIPS_CONTEXT_IMAGE_REPAIR_DEFERRED",row["source_id"],
+              type(exc).__name__,flush=True)
+        with db.conn() as c:
+            c.execute("""UPDATE dashboard_image_repairs SET status='failed'
+                         WHERE source_id=? AND status='claimed'""",(row["source_id"],))
+
+
 def _worker():
     while True:
         try:
             _prune_failed_hosted_imports()
             _archive_reviewed_sources()
             _queue_one_portuguese_quality_retest()
+            _queue_one_missing_context_photo_repair()
             _tick()
         except Exception as exc:
             print("AUTOCLIPS_DASHBOARD_WORKER_ERROR",type(exc).__name__,flush=True)

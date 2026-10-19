@@ -460,6 +460,43 @@ def _queue_one_nasa_private_validation():
                     WHERE k.project_id=?""", (row["project_id"],))]
             print("AUTOCLIPS_NASA_NO_READY_CLIP", states, render_states, flush=True)
             _queue_one_nasa_private_validation._empty_reported=True
+        # Retry only the single NASA validation after the old 1080p FFmpeg
+        # process was killed for using more memory than the Railway worker has.
+        # An atomic revision gate avoids duplicate jobs across restarts.
+        revision = "nasa-private-540p-lowmem-v1"
+        with db.conn() as c:
+            previously_failed = c.execute(
+                "SELECT 1 FROM clips WHERE project_id=? AND status='failed' LIMIT 1",
+                (row["project_id"],)).fetchone()
+            if previously_failed:
+                claimed = c.execute("""UPDATE dashboard_sources
+                    SET status='rendering',retry_revision=?,updated_at=?
+                    WHERE id=? AND status='awaiting_review'
+                      AND coalesce(retry_revision,'')<>?""",
+                    (revision, db.now(), source_id, revision)).rowcount
+            else:
+                claimed = 0
+        if claimed:
+            try:
+                project = db.one("projects", row["project_id"])
+                duration = float(project["duration"] or 0)
+                if duration < 16:
+                    raise ValueError("Fonte de teste curta demais")
+                retry = pipeline.start_render_split(
+                    row["project_id"], 0.0, min(duration - 0.25, 32.0))
+                with db.conn() as c:
+                    c.execute("""INSERT INTO dashboard_renders
+                       (clip_id,source_id,job_id,status,created_at)
+                       VALUES (?,?,?,'queued',?)""",
+                       (retry["clip_id"],source_id,retry["job_id"],db.now()))
+                print("AUTOCLIPS_NASA_LOW_MEM_RETRY_QUEUED",
+                      retry["clip_id"], flush=True)
+            except Exception as exc:
+                print("AUTOCLIPS_NASA_LOW_MEM_RETRY_FAILED",
+                      type(exc).__name__, flush=True)
+                with db.conn() as c:
+                    c.execute("UPDATE dashboard_sources SET status='failed' WHERE id=?",
+                              (source_id,))
         return
     try:
         result = enqueue_publication(

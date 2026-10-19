@@ -22,6 +22,7 @@ def import_video(source: str, source_kind: str = "file", authorized: bool = Fals
                  auto_transcribe: bool = True) -> dict:
     """Importa original MP4/MOV/MKV/WEBM da pasta storage/imports e, opcionalmente, transcreve.
 
+    Para URLs MP4 hospedadas autorizadas use source_kind='hosted'.
     Para URL do YouTube use source_kind='youtube' somente se houver autorização prévia
     por escrito do YouTube para download e direitos do titular sobre esse material,
     além da configuração ALLOW_YOUTUBE_IMPORT=true. Em outras situações peça arquivo original.

@@ -19,6 +19,9 @@ COPY pyproject.toml README.md ./
 COPY autoclips ./autoclips
 COPY server.py cloud_server.py dashboard.html ./
 RUN pip install --no-cache-dir ".[youtube-import]" && node --version && python -c "import yt_dlp; print(yt_dlp.version.__version__)"
+# Fail the deployment early if editorial/image modules have syntax errors
+# or the split layout regresses to hiding the central caption band.
+RUN python -m compileall -q autoclips && python -c "from autoclips.split_renderer import build_filters; from autoclips.contextual_image import topic_terms; from autoclips.editorial import require_spoken_portuguese; assert 'overlay=0:546:shortest=1' in build_filters('caption.ass'); assert topic_terms('Ramon Dino')[:2] == ['ramon','dino']"
 RUN mkdir -p /data && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin autoclips && chown -R autoclips:autoclips /data
 COPY docker-entrypoint.sh /usr/local/bin/autoclips-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/autoclips-entrypoint.sh

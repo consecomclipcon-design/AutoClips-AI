@@ -235,6 +235,8 @@ async def add_links(request):
             links = [v.strip() for v in links.splitlines() if v.strip()]
         if not isinstance(links,list) or not 1 <= len(links) <= 25:
             return _answer({"error": "provide_1_to_25_links"}, 400)
+        if data.get("authorized") is not True:
+            return _answer({"error": "source_authorization_required"}, 403)
     except Exception:
         return _answer({"error": "invalid_json"}, 400)
     _db_init()
@@ -290,6 +292,11 @@ async def review(request):
                          (id,clip_id,decision,comment,created_at)
                          VALUES (?,?,?,?,?)""",
                       (db.newid("rev"),clip_id,decision,comment,db.now()))
+        if decision=="dislike":
+            with db.conn() as c:
+                # Disapproving a queued (not-yet-uploading) clip cancels its public upload.
+                c.execute("""UPDATE dashboard_publishes SET status='cancelled'
+                             WHERE clip_id=? AND status='queued'""", (clip_id,))
         if decision=="like":
             title=(data.get("title") or (existing["name"] + " #Shorts"))[:100]
             description=(data.get("description") or ("Corte de " + existing["name"] + ". #Shorts"))[:5000]
@@ -328,7 +335,7 @@ def _tick():
     # Start at most one source import at a time; the CPU only has two render workers.
     with db.conn() as c:
         active=c.execute("""SELECT count(*) FROM dashboard_sources
-                            WHERE status='importing'""").fetchone()[0]
+                            WHERE status IN ('importing','rendering')""").fetchone()[0]
         row=c.execute("""SELECT * FROM dashboard_sources WHERE status='queued'
                          ORDER BY created_at LIMIT 1""").fetchone() if not active else None
     if row:

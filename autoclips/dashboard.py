@@ -525,7 +525,9 @@ def _tick():
         import shutil
         if shutil.disk_usage(home()).free < 95 * 1024 * 1024:
             print("AUTOCLIPS_SOURCE_QUEUE_PAUSED_STORAGE_LOW",flush=True)
-            return
+            row = None
+    # A paused importer must not pause render status checks or YouTube uploads.
+    if row:
         try:
             print("AUTOCLIPS_SOURCE_QUEUE_START", row["id"], row["source_kind"], flush=True)
             res=pipeline.new_project(row["link"],source_kind=row["source_kind"],

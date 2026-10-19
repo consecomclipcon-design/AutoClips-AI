@@ -1,3 +1,27 @@
+# AutoClips AI — ClipCon | Pipeline privado em produção
+
+**Verificação real em 19/10/2026:** importação autorizada de mídia NASA/JPL, transcrição Faster-Whisper, renderização com vídeo superior, imagem inferior e legendas no divisor, e envio **privado** confirmado ao canal ClipCon: https://www.youtube.com/watch?v=WZfZA5mmcGk (33 segundos).
+
+**Painel:** https://autoclips-worker-production.up.railway.app/app (acesso protegido por senha).
+
+**Fila e armazenamento:** worker Railway com SQLite em volume persistente `/data` e arquivo privado em bucket S3 compatível. Os originais já renderizados são enviados ao bucket com verificação SHA-256 antes de liberar espaço local. A restauração acontece sob demanda para refações; novas importações podem pausar por pouco espaço sem bloquear conclusão de renderizações e publicações.
+
+**Limitação de hardware:** o primeiro render 1080×1920 foi encerrado por OOM, então o perfil de execução deste worker limita a composição a **540×960**, com um único thread do FFmpeg. A qualidade 1080×1920 exige reconfigurar capacidade de processamento e validar outro perfil; não está homologada.
+
+## Ingestão a partir do chat (conector vidIQ + Railway)
+
+O fluxo neste ChatGPT usa os conectores autorizados, **não** um app MCP do AutoClips já instalado no chat:
+
+1. Receba a URL do YouTube e verifique permissões de uso/republicação. Use a ferramenta conectada `vidiq_video_upload(url=...)`; se voltar `mcpJobId`, acompanhe `vidiq_job_poll` até `result.status=ready`.
+2. Com o `videoUrl` assinado e retornado, defina a variável **privada** `AUTOCLIPS_AGENT_CHAT_IMPORT` no serviço `autoclips-worker` do projeto Railway `AutoClips AI`. O valor é um objeto JSON com chaves `video_id`, `youtube_url` (URL canônica `https://www.youtube.com/watch?v=<ID>`), `media_url` (URL assinada HTTPS de `storage.googleapis.com`), `title`, `private_publish_approved` (booleano) e `rights_confirmed` (booleano). Não exponha URLs assinadas, chaves ou OAuth.
+3. A alteração da variável redeploya o worker e enfileira idempotentemente `src_chat_<ID>`, sem modificar outros vídeos. O pipeline importa, transcreve e sugere cortes com o editor dividido. O painel disponibiliza os cortes para revisão.
+4. **Upload automático somente em privado**, e **somente quando** o responsável aprovou expressamente a publicação e confirmou direitos (`private_publish_approved=true` e `rights_confirmed=true`). Sem isso, o corte ficará na revisão manual. Aprovação não pode ser inferida só de existir uma URL pública.
+5. Confirme o resultado pelos logs `AUTOCLIPS_CHAT_PRIVATE_TEST_QUEUED` e `AUTOCLIPS_PUBLICATION_SUCCESS` e depois pelo canal autenticado. Se a importação falhar, registre o erro e solicite mídia original autorizada; não invente mídia.
+
+**Status:** primeiro ciclo privado realmente publicado; capacidade operacional depende dos limites do Railway, acesso ao vídeo e permissões de uso. O material anterior abaixo descreve a evolução histórica do MVP.
+
+---
+
 # AutoClips AI v0.4 — processamento e layout dividido
 
 **AVISO DE STATUS:** base Python e MCP testada localmente; não é um plugin hospedado no ChatGPT nem sistema de publicação automática implantado. Veja `docs/PLANO_TECNICO_V0.4.md`.

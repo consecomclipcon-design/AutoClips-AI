@@ -278,6 +278,13 @@ def test_agent_chat_media_ingests_once_and_never_publishes_without_rights(workin
     with db.conn() as c:
         c.execute("UPDATE chat_ingest_permissions SET rights_confirmed=1 WHERE source_id=?",
                   ("src_chat_Er5L6cxnRTc",))
+    # A rights flag alone does not bypass the Portuguese captions/photo QA.
+    dashboard._queue_one_approved_chat_source()
+    assert publish_queue.get_publication(clip) is None
+    qa = {"language":"pt","image_mode":"owner_provided",
+          "caption_events":40,"auto_publish_ready":True}
+    import json
+    (working/"imports"/(clip+".qa.json")).write_text(json.dumps(qa))
     dashboard._queue_one_approved_chat_source()
     row = publish_queue.get_publication(clip)
     assert row["status"] == "queued" and row["privacy"] == "private"

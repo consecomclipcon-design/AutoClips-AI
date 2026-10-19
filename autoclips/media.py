@@ -95,7 +95,7 @@ def _source_format(duration: float) -> str:
 
 
 def _youtube_options(temp_dir: Path, player_client: str, provider: str | None,
-                     duration: float = 900.0) -> dict:
+                     duration: float = 900.0, use_ipv6: bool | None = None) -> dict:
     if player_client not in {"mweb", "tv", "web_safari", "web_embedded"}:
         raise ValueError("Cliente de download não autorizado")
     args = {"youtube": {"player_client": [player_client]}}
@@ -143,7 +143,9 @@ def _youtube_options(temp_dir: Path, player_client: str, provider: str | None,
         options["proxy"] = proxy_url
     # Experimental IPv6 Railway outbound route: a separate public egress IP.
     # Opt-in with private environment variable; no user steps per YouTube link.
-    if os.getenv("AUTOCLIPS_YOUTUBE_IPV6", "").strip().lower() == "true":
+    if use_ipv6 is None:
+        use_ipv6 = os.getenv("AUTOCLIPS_YOUTUBE_IPV6", "").strip().lower() == "true"
+    if use_ipv6:
         options["source_address"] = "::"
     return options
 
@@ -174,10 +176,19 @@ def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -
     errors = []
     # mweb with official yt-dlp plugin's external PO-token provider first;
     # alternative clients handle videos that do not work with mweb.
-    for client in ("mweb", "tv", "web_safari", "web_embedded"):
+    # Preserve an IPv4 fallback when IPv6 is enabled; an IPv6-only route can
+    # be unavailable or equally blocked on the chosen Railway region.
+    ipv6_enabled = os.getenv("AUTOCLIPS_YOUTUBE_IPV6", "").strip().lower() == "true"
+    strategies = (
+        ([("mweb", True), ("tv", True)] if ipv6_enabled else [])
+        + [(client, False) for client in ("mweb", "tv", "web_safari", "web_embedded")]
+    )
+    print("AUTOCLIPS_YTDLP_PROVIDER_CONFIGURED", bool(provider),
+          "IPV6_FALLBACK_ENABLED", ipv6_enabled, flush=True)
+    for client, use_ipv6 in strategies:
         shutil.rmtree(temp_dir, ignore_errors=True)
         temp_dir.mkdir(parents=True, exist_ok=True)
-        opts = _youtube_options(temp_dir, client, provider)
+        opts = _youtube_options(temp_dir, client, provider, use_ipv6=use_ipv6)
         try:
             with yt_dlp.YoutubeDL(opts) as downloader:
                 info = downloader.extract_info(canonical_url, download=False)
@@ -208,6 +219,7 @@ def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -
             target = folder / ("source" + files[0].suffix.lower())
             os.replace(files[0], target)
             print("AUTOCLIPS_SOURCE_IMPORTED", video_id, client,
+                  "route", "ipv6" if use_ipv6 else "ipv4",
                   "bytes", target.stat().st_size, flush=True)
             return target
         except (PermissionError, ValueError):
@@ -215,8 +227,9 @@ def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -
         except Exception as exc:
             # Log only client names and exception types; never token URLs.
             print("AUTOCLIPS_SOURCE_STRATEGY_FAILED", video_id, client,
+                  "route", "ipv6" if use_ipv6 else "ipv4",
                   type(exc).__name__, flush=True)
-            errors.append((client, type(exc).__name__))
+            errors.append((client + (":ipv6" if use_ipv6 else ":ipv4"), type(exc).__name__))
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
     raise RuntimeError(

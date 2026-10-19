@@ -141,6 +141,10 @@ def _youtube_options(temp_dir: Path, player_client: str, provider: str | None,
     }
     if proxy_url:
         options["proxy"] = proxy_url
+    # Experimental IPv6 Railway outbound route: a separate public egress IP.
+    # Opt-in with private environment variable; no user steps per YouTube link.
+    if os.getenv("AUTOCLIPS_YOUTUBE_IPV6", "").strip().lower() == "true":
+        options["source_address"] = "::"
     return options
 
 

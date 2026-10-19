@@ -64,6 +64,38 @@ def _db_init():
             c.execute("ALTER TABLE dashboard_sources ADD COLUMN auto_retry_count INTEGER NOT NULL DEFAULT 0")
         if "retry_revision" not in columns:
             c.execute("ALTER TABLE dashboard_sources ADD COLUMN retry_revision TEXT NOT NULL DEFAULT ''")
+        if "title" not in columns:
+            c.execute("ALTER TABLE dashboard_sources ADD COLUMN title TEXT")
+        if "original_video_id" not in columns:
+            c.execute("ALTER TABLE dashboard_sources ADD COLUMN original_video_id TEXT")
+        # The signed media URLs are supplied only as PRIVATE Railway variables.
+        # Never log them, put them in Git, or expose in a UI response.
+        raw_batch = os.getenv("AUTOCLIPS_VIDIQ_REVIEW_BATCH", "")
+        if raw_batch:
+            try:
+                entries = json.loads(raw_batch)
+                if not isinstance(entries, list) or len(entries) > 25:
+                    raise ValueError("invalid manifest")
+                for entry in entries:
+                    video_id = str(entry.get("video_id", ""))
+                    media_url = str(entry.get("media_url", ""))
+                    title = str(entry.get("title", ""))[:160]
+                    if not re.fullmatch(r"[a-zA-Z0-9_-]{11}", video_id):
+                        raise ValueError("invalid video id")
+                    parsed = urlparse(media_url)
+                    if (not title or parsed.scheme != "https" or
+                        parsed.hostname != "storage.googleapis.com" or
+                        not parsed.path.endswith(".mp4") or parsed.username or parsed.password):
+                        raise ValueError("invalid signed video URL")
+                    sid = "src_vidiq_" + video_id.replace("-", "_")
+                    c.execute("""INSERT OR IGNORE INTO dashboard_sources
+                                 (id,link,source_kind,status,created_at,updated_at,title,original_video_id)
+                                 VALUES (?,?,'hosted','queued',?,?,?,?)""",
+                              (sid, media_url, db.now(), db.now(), title, video_id))
+                print("AUTOCLIPS_VIDIQ_MANIFEST_APPLIED", len(entries), flush=True)
+            except (ValueError, TypeError, KeyError) as exc:
+                print("AUTOCLIPS_VIDIQ_MANIFEST_INVALID", type(exc).__name__, flush=True)
+
         retried = c.execute("""UPDATE dashboard_sources
                         SET status='queued',error=NULL,project_id=NULL,job_id=NULL,
                             auto_retry_count=auto_retry_count+1,
@@ -367,6 +399,8 @@ def _tick():
             res=pipeline.new_project(row["link"],source_kind=row["source_kind"],
                                      authorized=True,auto_transcribe=True)
             with db.conn() as c:
+                if row["title"]:
+                    c.execute("UPDATE projects SET name=? WHERE id=?", (row["title"],res["project_id"]))
                 c.execute("""UPDATE dashboard_sources SET status='importing',
                              project_id=?,job_id=?,updated_at=? WHERE id=?""",
                           (res["project_id"],res["job_id"],db.now(),row["id"]))

@@ -45,6 +45,14 @@ def test_07_split_filter_contains_two_panels():
     assert '960' in f
 
 
+def test_07b_central_subtitle_strip_separates_picture_and_video():
+    formula=s.build_filters('titles.ass',size=(540,960))
+    # Video height 412, bottom begins at 546: a 134-pixel band for subtitles.
+    assert "pad=540:960:0:0:black[top]" in formula
+    assert "overlay=0:546:shortest=1" in formula
+    assert "crop=540:414[bottom]" in formula
+
+
 def test_08_attribution_is_sanitized():
     assert s.safe_credit('Fonte: vídeo\nOutra linha') == 'Fonte: vídeo Outra linha'
     assert len(s.safe_credit('x'*300)) <= 100

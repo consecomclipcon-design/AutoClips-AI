@@ -489,9 +489,39 @@ def _tick():
     publish_next()
 
 
+def _prune_failed_hosted_imports() -> int:
+    """Free only abandoned failed imported sources, never a ready/review clip."""
+    root = (home() / "projects").resolve()
+    released = 0
+    with db.conn() as c:
+        candidates = c.execute("""SELECT p.id,p.media FROM projects p
+                WHERE p.source_kind='hosted'
+                AND p.status IN ('failed','transcription_failed')
+                AND NOT EXISTS (SELECT 1 FROM clips k WHERE k.project_id=p.id)
+                AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.target_id=p.id
+                                AND j.status IN ('queued','running'))""").fetchall()
+    for row in candidates:
+        folder = (root / row["id"]).resolve()
+        if folder.parent != root or not folder.is_dir():
+            continue
+        for filename in ("source.mp4","source_compressed.mp4","source.mp4.part"):
+            target = folder / filename
+            try:
+                if target.is_file() and not target.is_symlink():
+                    size = target.stat().st_size
+                    target.unlink()
+                    released += size
+            except OSError:
+                continue
+    if released:
+        print("AUTOCLIPS_ORPHANED_FAILED_IMPORTS_FREED_BYTES", released, flush=True)
+    return released
+
+
 def _worker():
     while True:
         try:
+            _prune_failed_hosted_imports()
             _tick()
         except Exception as exc:
             print("AUTOCLIPS_DASHBOARD_WORKER_ERROR",type(exc).__name__,flush=True)

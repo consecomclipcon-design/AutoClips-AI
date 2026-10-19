@@ -1,4 +1,4 @@
-name: AutoClips Cariani - real source import and render validation
+name: AutoClips Real Cariani End-to-End
 on:
   workflow_dispatch:
   push:
@@ -7,69 +7,84 @@ on:
 permissions:
   contents: read
 jobs:
-  import-and-render:
+  render-authenticated-source:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Checkout AutoClips
+      - name: Checkout AutoClips code
         uses: actions/checkout@v4
-      - name: Set up Python
+      - name: Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install ffmpeg and yt-dlp
+      - name: Install AutoClips media dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg fonts-dejavu-core
-          python -m pip install -U 'yt-dlp[default]' pytest
-          yt-dlp --version
-          ffmpeg -version | head -2
-      - name: AutoClips download test from authorized Cariani video
+          python -m pip install -U pytest 'faster-whisper>=1.1,<2'
+      - name: Fetch authorized full original into AutoClips
         env:
           AUTOCLIPS_HOME: ${{ runner.temp }}/autoclips
-          ALLOW_YOUTUBE_IMPORT: 'true'
         run: |
-          mkdir -p "$AUTOCLIPS_HOME"
           python - <<'PY'
-          import json
-          from autoclips.media import import_youtube_approved, probe
-          url="https://www.youtube.com/watch?v=q6OYTqiXmAw"
-          file=import_youtube_approved(url, "cariani_autorizado", True)
-          print("DOWNLOAD_COMPLETED:",file,flush=True)
-          info=probe(file)
-          print("VIDEO_PROBE:",json.dumps(info),flush=True)
-          if not (info["duration"]>70 and info["width"]>=240):
-              raise RuntimeError("Invalid downloaded video content")
+          from autoclips.media import import_hosted_approved, probe
+          url = 'https://storage.googleapis.com/vidiq-user-videos/b9b2433f-4bec-44bb-987a-d2e3714a7d6f/7a27afca-10e7-458a-94e8-411a33864c5d.mp4?GoogleAccessId=ai-proxy-20261001%40studious-pen-429.vid.io.iam.gserviceaccount.com&Expires=1793017579&Signature=pHvHOPQJlntu8CP4Qyf%2F2RPH%2FDkuNZbU0ERGbdQdn%2BLkZDe9YyBkwgaLJmwvXdkdlOksOkbw6hd%2FpP5UxjC6NIjOB03jK7%2FCYPdimskZXX4muWtgRXLoRc%2Fbqc0b6MtaUB59E25eZcc5GBmri5INzFWaUq1cmDU412Nd3IliKZCT4Q%2FPdFhnbBXLRPzirAVXX6RbIIzQ31S8lO6Gkyx4ypBxXmVC0gxDEgR0iEvcQdoa6lWcBfoT4pvu9FX8ASbn1US40hVhJa029Tp06my4IjcoL5FbYAWCzUW0StXiwJ028PTVXX%2FXU3rSr2Ow3Wg07GZnvmjFqtf3t8sJZEfzNw%3D%3D'
+          file = import_hosted_approved(url, 'cariani_2026', True)
+          info = probe(file)
+          print('AUTOCLIPS_DOWNLOAD_SUCCESS', file.stat().st_size, info)
+          assert 355 < info['duration'] < 365 and info['width'] >= 720
           PY
-      - name: Render real source in AutoClips
+      - name: Generate transcript and edit ORIGINAL MP4 with AutoClips
         env:
           AUTOCLIPS_HOME: ${{ runner.temp }}/autoclips
         run: |
           python - <<'PY'
           import json
-          from pathlib import Path
-          from autoclips.split_renderer import render_split
-          root=Path(__import__('os').environ["AUTOCLIPS_HOME"])
-          video=next((root/'projects/cariani_autorizado').glob('source.*'))
-          image=root/'cariani_contexto.jpg'
+          import subprocess
           import urllib.request
+          from pathlib import Path
+          import os
+          from autoclips.media import probe
+          from autoclips.split_renderer import render_split
+          root=Path(os.environ['AUTOCLIPS_HOME'])
+          video=root/'projects'/'cariani_2026'/'source.mp4'
+          out=Path('AutoClips_Cariani_casamento_contexto.mp4').resolve()
+          start,end=8.0,88.0
+          image=root/'cariani_tati.jpg'
           try:
-              urllib.request.urlretrieve("https://i.ytimg.com/vi/6byBqwVBgek/hqdefault.jpg",image)
+              urllib.request.urlretrieve('https://i.ytimg.com/vi/6byBqwVBgek/hqdefault.jpg',image)
+              print('AUTOCLIPS_IMAGE_FOUND',image.stat().st_size)
           except Exception as exc:
-              print("IMAGE_FALLBACK:",str(exc))
+              print('AUTOCLIPS_IMAGE_FALLBACK',type(exc).__name__)
               image=None
-          out=Path("autoclips-carani-corte.mp4")
-          result=render_split(source=video,words=[],start=8,end=78,output=out,
-            image=image,hook_white="APOSTARAM QUE ELE",hook_red="NÃO IA CASAR",size=(540,960))
-          print("RENDER_RESULT:",json.dumps(result))
+          audio=root/'cariani_voice.wav'
+          subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-ss',str(start),'-t',str(end-start),
+              '-i',str(video),'-ac','1','-ar','16000','-vn',str(audio)],check=True)
+          from faster_whisper import WhisperModel
+          model=WhisperModel('tiny',device='cpu',compute_type='int8')
+          segments,info=model.transcribe(str(audio),language='pt',word_timestamps=True,beam_size=3)
+          words=[]
+          for s in segments:
+              for w in (s.words or []):
+                  if w.start is not None and w.end is not None and w.end>w.start:
+                      words.append({'start':start+w.start,'end':start+w.end,'text':w.word.strip()})
+          print('AUTOCLIPS_TRANSCRIPT_WORDS',len(words),'language',info.language)
+          if len(words)<30: raise RuntimeError('transcription did not find sufficient words')
+          result=render_split(source=video,words=words,start=start,end=end,output=out,
+              image=image,focal_x=0.55,size=(720,1280),
+              hook_white='APOSTARAM QUE ELE',hook_red='NÃO IA CASAR')
+          print('AUTOCLIPS_RENDER_COMPLETE',json.dumps(result))
+          assert out.stat().st_size>100_000
+          info=probe(out)
+          print('AUTOCLIPS_FINAL_PROBE',json.dumps(info))
+          assert abs(info['duration']-(end-start))<1.5
+          assert info['width']==720 and info['height']==1280
           PY
-          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_type,width,height -of json autoclips-carani-corte.mp4
-          test -s autoclips-carani-corte.mp4
-      - name: Upload finished AutoClips MP4
+      - name: Upload real output MP4
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: autoclips-carani-real-clip
-          path: autoclips-carani-corte.mp4
+          name: AutoClips-Cariani-80s-Video-Real
+          path: AutoClips_Cariani_casamento_contexto.mp4
           retention-days: 7
           if-no-files-found: error

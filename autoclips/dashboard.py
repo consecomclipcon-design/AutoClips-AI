@@ -819,11 +819,11 @@ def _queue_one_portuguese_quality_retest():
         row=c.execute("""SELECT s.id,s.project_id,p.transcript,p.duration
              FROM dashboard_sources s JOIN projects p ON p.id=s.project_id
              WHERE s.status='awaiting_review'
-               AND s.original_video_id IN ('e2Mou7KYXyo','cbmRw1Y9QPQ')
+               AND s.original_video_id IN ('PRQ_7aZtnqg','e2Mou7KYXyo','cbmRw1Y9QPQ')
                AND p.transcript IS NOT NULL
                AND NOT EXISTS(SELECT 1 FROM dashboard_quality_retests r
                               WHERE r.source_id=s.id)
-             ORDER BY CASE s.original_video_id WHEN 'e2Mou7KYXyo' THEN 0 ELSE 1 END
+             ORDER BY CASE s.original_video_id WHEN 'PRQ_7aZtnqg' THEN 0 WHEN 'e2Mou7KYXyo' THEN 1 ELSE 2 END
              LIMIT 1""").fetchone()
     if not row:
         return

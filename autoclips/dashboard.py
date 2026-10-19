@@ -540,11 +540,6 @@ def _archive_reviewed_sources() -> int:
         candidates = c.execute("""SELECT p.id,p.media FROM projects p
             JOIN dashboard_sources s ON s.project_id=p.id
             WHERE s.status IN ('awaiting_review','failed') AND p.media IS NOT NULL
-            AND (s.status='failed' OR (
-                EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
-                       AND k.status='ready' AND k.path IS NOT NULL)
-                AND NOT EXISTS(SELECT 1 FROM clips k WHERE k.project_id=p.id
-                               AND k.status<>'ready')))
             AND NOT EXISTS(SELECT 1 FROM jobs j WHERE
                            (j.target_id=p.id OR j.target_id IN (
                              SELECT k.id FROM clips k WHERE k.project_id=p.id))
@@ -555,7 +550,14 @@ def _archive_reviewed_sources() -> int:
             with db.conn() as c:
                 snapshot = [dict(x) for x in c.execute(
                     "SELECT status,count(*) AS count FROM dashboard_sources GROUP BY status")]
-            print("AUTOCLIPS_ARCHIVE_NO_SAFE_CANDIDATES", snapshot, flush=True)
+            details = []
+            with db.conn() as c:
+                details = [dict(v) for v in c.execute("""
+                    SELECT s.status AS source_status,p.status AS project_status,
+                           count(*) AS projects_with_media
+                    FROM dashboard_sources s JOIN projects p ON p.id=s.project_id
+                    WHERE p.media IS NOT NULL GROUP BY s.status,p.status""")]
+            print("AUTOCLIPS_ARCHIVE_NO_SAFE_CANDIDATES", snapshot, details, flush=True)
             _archive_reviewed_sources._warned_candidates = True
         return 0
     root = (home() / "projects").resolve()

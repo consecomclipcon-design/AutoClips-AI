@@ -1,0 +1,54 @@
+name: Smoke Test YouTube OAuth Redirect
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/smoke-oauth-redirect.yml
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm AutoClips redirects to Google consent
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+          import urllib.error
+          from urllib.parse import urlparse, parse_qs
+
+          base = "https://autoclips-worker-production.up.railway.app"
+          request = urllib.request.Request(base + "/health", headers={"User-Agent": "AutoClips-OAuth-Smoke/1"})
+          with urllib.request.urlopen(request, timeout=20) as resp:
+              health = json.load(resp)
+          assert health.get("status") == "ok", "Health probe failed"
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          opener = urllib.request.build_opener(NoRedirect())
+          try:
+              response = opener.open(urllib.request.Request(
+                  base + "/oauth/youtube/start", headers={"User-Agent": "AutoClips-OAuth-Smoke/1"},
+              ), timeout=20)
+              status, location = response.status, response.headers.get("Location", "")
+          except urllib.error.HTTPError as ex:
+              status, location = ex.code, ex.headers.get("Location", "")
+              if status != 302:
+                  raise AssertionError(f"OAuth start returned HTTP {status}, expected HTTP 302 Google consent") from None
+
+          assert status == 302, f"Unexpected OAuth status {status}"
+          parsed = urlparse(location)
+          assert parsed.scheme == "https" and parsed.netloc == "accounts.google.com", "OAuth did not redirect to Google"
+          qs = parse_qs(parsed.query)
+          assert qs.get("response_type") == ["code"], "Expected authorization-code flow"
+          assert qs.get("access_type") == ["offline"], "Offline refresh token not requested"
+          assert qs.get("redirect_uri") == [base + "/oauth/youtube/callback"], "Callback mismatch"
+          assert len(qs.get("state", [""])[0]) >= 32, "Missing OAuth CSRF state"
+          scope = qs.get("scope", [""])[0]
+          assert "https://www.googleapis.com/auth/youtube.upload" in scope.split(), "Missing upload scope"
+          print("PASS: AutoClips is healthy; authorization redirects to Google with correct callback and upload scope.")
+          PY

@@ -17,8 +17,14 @@ class BearerGate:
         self.token = token
 
     async def __call__(self, scope, receive, send):
-        oauth_public = (scope.get("path") in {"/oauth/youtube/start", "/oauth/youtube/callback"}
-                        and scope.get("method") == "GET")
+        path = scope.get("path", "")
+        # Dashboard has its own signed HttpOnly session and CSRF checks;
+        # the import webhook uses validated GitHub Actions OIDC.
+        independent_auth = (path == "/app" or path.startswith("/auth/")
+                            or path.startswith("/api/console/")
+                            or path == "/internal/approved-demo")
+        oauth_public = ((scope.get("path") in {"/oauth/youtube/start", "/oauth/youtube/callback"}
+                         and scope.get("method") == "GET") or independent_auth)
         if scope["type"] == "http" and scope.get("path") != "/health" and not oauth_public:
             auths = [v for k, v in scope.get("headers", []) if k.lower() == b"authorization"]
             expected = f"Bearer {self.token}".encode("utf-8")

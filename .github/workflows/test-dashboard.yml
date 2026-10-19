@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - "autoclips/dashboard.py"
+      - "autoclips/media.py"
+      - "pyproject.toml"
+      - "tests/test_video_ingest.py"
       - "autoclips/publish_queue.py"
       - "autoclips/demo_ingest.py"
       - "dashboard.html"
@@ -29,4 +32,4 @@ jobs:
       - name: Check syntax
         run: python -m compileall -q autoclips cloud_server.py server.py
       - name: Check dashboard and publication rules
-        run: python -m pytest -q tests/test_dashboard.py tests/test_youtube_oauth_web.py
+        run: python -m pytest -q tests/test_dashboard.py tests/test_youtube_oauth_web.py tests/test_video_ingest.py

@@ -116,6 +116,34 @@ def test_youtube_large_source_chooses_small_format_without_manual_upload(tmp_pat
         "http://autoclips-pot-provider.railway.internal:4416"]
 
 
+def test_ipv6_failure_falls_back_to_ipv4_without_cookies(tmp_path,monkeypatch):
+    monkeypatch.setenv("AUTOCLIPS_HOME",str(tmp_path))
+    monkeypatch.setenv("ALLOW_YOUTUBE_IMPORT","true")
+    monkeypatch.setenv("AUTOCLIPS_YOUTUBE_IPV6","true")
+    monkeypatch.delenv("AUTOCLIPS_POT_PROVIDER_URL",raising=False)
+    seen=[]
+    class FakeDownloader:
+        def __init__(self,options):
+            self.params=options
+        def __enter__(self): return self
+        def __exit__(self,*_): pass
+        def extract_info(self,*_args,**_kwargs):
+            route=self.params.get("source_address","ipv4")
+            client=self.params["extractor_args"]["youtube"]["player_client"][0]
+            seen.append((client,route))
+            if route=="::":
+                raise RuntimeError("IPv6 route unreachable")
+            return {"_type":"video","duration":900,"formats":[{"height":360}]}
+        def download(self,urls):
+            output=Path(self.params["outtmpl"].replace("%(ext)s","mp4"))
+            output.write_bytes(b"fallback downloads without browser interaction")
+            return 0
+    monkeypatch.setitem(sys.modules,"yt_dlp",types.SimpleNamespace(YoutubeDL=FakeDownloader))
+    path=import_youtube_approved("https://youtu.be/NmjiNtvSkFk","p_dualstack",True)
+    assert path.exists()
+    assert seen==[("mweb","::"),("tv","::"),("mweb","ipv4")]
+
+
 def test_youtube_provider_rejects_untrusted_address(tmp_path,monkeypatch):
     monkeypatch.setenv("AUTOCLIPS_POT_PROVIDER_URL","http://127.0.0.1:4416")
     from autoclips.media import _safe_pot_provider

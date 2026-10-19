@@ -171,7 +171,8 @@ def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -
                     raise RuntimeError("Não foi possível obter a duração do vídeo")
                 if duration > MAX_SOURCE_SECONDS:
                     raise ValueError("Vídeo maior que 4 horas; análise em partes necessária")
-                downloader.params["format"] = _source_format(float(duration))
+                if hasattr(downloader, "params"):
+                    downloader.params["format"] = _source_format(float(duration))
                 # Allow the downloader to pick an economical format itself,
                 # avoiding the original's 1GB+ best-quality representation.
                 filesize = info.get("filesize") or info.get("filesize_approx")

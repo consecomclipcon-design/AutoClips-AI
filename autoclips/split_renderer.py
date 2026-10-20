@@ -4,6 +4,7 @@ Captions are drawn in the center divider, rather than obscuring faces.
 If no verified, licensed image is supplied, a still is extracted from source.
 """
 from __future__ import annotations
+import os
 
 import math
 import re
@@ -154,6 +155,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 f'{{\\an5\\pos(540,1004)}}{bottom}\n')
     content += (f'Dialogue: 1,0:00:00.00,{duration},Underline,,0,0,0,,'
                 r'{\an7\pos(390,846)\p1\1c&H00FF52EB&}m 0 0 l 300 0 300 7 0 7' '\n')
+    # Arial Black is available on most Windows installations; Lato is
+    # packaged on the cloud worker. Never require external font-file downloads.
+    if os.getenv('AUTOCLIPS_DESKTOP') == '1':
+        content = content.replace('Style: HookTop,Lato,', 'Style: HookTop,Arial Black,')
+        content = content.replace('Style: HookAccent,Lato,', 'Style: HookAccent,Arial Black,')
     ass.write_text(content, encoding='utf-8')
     return 2
 

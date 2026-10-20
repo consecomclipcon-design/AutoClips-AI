@@ -153,7 +153,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     content += (f'Dialogue: 2,0:00:00.00,{duration},HookAccent,,0,0,0,,'
                 f'{{\\an5\\pos(540,1004)}}{bottom}\n')
     content += (f'Dialogue: 1,0:00:00.00,{duration},Underline,,0,0,0,,'
-                r'{\\an7\\pos(390,846)\\p1\\1c&H00FF52EB&}m 0 0 l 300 0 300 7 0 7' '\n')
+                r'{\an7\pos(390,846)\p1\1c&H00FF52EB&}m 0 0 l 300 0 300 7 0 7' '\n')
     ass.write_text(content, encoding='utf-8')
     return 2
 
@@ -189,11 +189,11 @@ def render_split(*, source: str | Path, words: list[dict],start: float,end: floa
         if value:
             current = ass.read_text(encoding='utf-8')
             style = ('Style: PhotoCredit,DejaVu Sans,26,&H00FFFFFF,&H000000FF,'
-                     '&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,20,20,18,1\\n')
+                     '&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,20,20,18,1\n')
             current = current.replace('[Events]',style+'[Events]',1)
             current += ('Dialogue: 2,0:00:00.00,'+_ass_time(end-start)+
                         ',PhotoCredit,,0,0,0,,'+
-                        r'{\\an2\\pos(540,1870)}'+value+'\\n')
+                        r'{\an2\pos(540,1870)}'+value+'\n')
             ass.write_text(current, encoding='utf-8')
     if image is None:
         img=out.with_name(out.stem+'_still.png')

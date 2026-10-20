@@ -15,6 +15,53 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:7;padding:12px 18px;background:#23283b;color:white;border:1px solid #596079;border-radius:12px;max-width:90vw;box-shadow:0 14px 40px #000b}
 @media(max-width:1150px){.wrap{grid-template-columns:220px 1fr;gap:12px}.rightbar{grid-column:1/-1}.feed-zone{grid-row:1/3}.rightbar{grid-row:3}.sidebar{grid-column:1}}@media(max-width:690px){header{height:62px;padding:0 14px}.topright .pill{display:none}.wrap{grid-template-columns:1fr;padding:8px;gap:9px}.sidebar{display:none}.feed-zone{min-height:calc(100dvh - 145px);grid-column:1;grid-row:1}.phone-frame{height:min(690px,calc(100dvh - 172px));border-radius:17px}.reactions{gap:6px}.btn.circle{width:40px;height:40px;font-size:19px}.rightbar{grid-row:2;grid-column:1;padding:16px}.mobile-nav{display:flex!important;gap:8px}.mobile-nav .btn{margin:0;flex:1}.aside-heading{margin-top:10px}}
 .mobile-nav{display:none;padding:6px}
+
+/* Studio three-column layout — top-aligned feed, compact side panels */
+.wrap{max-width:1620px;grid-template-columns:235px minmax(0,1fr) 260px;gap:20px;align-items:start;padding:22px}
+.sidebar,.rightbar{padding:20px;min-width:0}
+.feed-zone{align-self:start;min-height:0;align-items:flex-start;justify-content:center;gap:12px;position:sticky;top:18px}
+.phone-frame{height:min(720px,calc(100dvh - 124px));aspect-ratio:9/16;max-width:min(100%,410px);flex:0 1 auto;border-width:3px}
+.phone-frame video{position:absolute;inset:0;height:100%;width:100%}
+#emptyFeed{margin:auto}
+.reactions{flex:0 0 54px;padding-top:85px}
+.sidebar .nav{padding:11px 12px}
+.sidebar .aside-heading{margin:18px 0 10px}
+.stat-big{line-height:1.18}
+.rightbar #links{height:46px;resize:none}
+.rightbar .btn.primary{width:100%;margin-top:13px}
+.modal-backdrop{position:fixed;inset:0;z-index:15;display:flex;align-items:center;justify-content:center;background:#05060bd9;backdrop-filter:blur(7px);padding:18px}
+.modal-box{width:min(460px,100%);border:1px solid #44495b;border-radius:20px;background:#151824;padding:24px;box-shadow:0 26px 90px #000c}
+.modal-box h2{margin:0 0 7px;font-size:21px;letter-spacing:-.4px}
+.modal-box p{color:#bac1d2;font-size:13px;margin:0 0 17px}
+.modal-box textarea{min-height:134px;resize:vertical}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.modal-actions .btn{flex:1}
+@media(max-width:1150px) and (min-width:851px){
+  .wrap{grid-template-columns:190px minmax(0,1fr) 210px;gap:12px;padding:14px}
+  .sidebar,.rightbar{padding:14px}
+  .feed-zone{grid-column:2;grid-row:1;top:14px}
+  .rightbar{grid-column:3;grid-row:1}
+  .sidebar{grid-column:1;grid-row:1}
+  .phone-frame{height:min(690px,calc(100dvh - 108px))}
+  .reactions{flex-basis:43px;gap:8px}
+}
+@media(max-width:850px) and (min-width:691px){
+  .wrap{grid-template-columns:175px minmax(0,1fr);gap:12px;padding:14px}
+  .sidebar{grid-column:1;grid-row:1}
+  .feed-zone{grid-column:2;grid-row:1;position:relative;top:auto}
+  .rightbar{grid-column:1/-1;grid-row:2}
+  .phone-frame{height:min(620px,calc(100dvh - 110px))}
+}
+@media(max-width:690px){
+  .wrap{grid-template-columns:minmax(0,1fr);padding:10px;gap:12px}
+  .sidebar{display:none}
+  .feed-zone{grid-column:1;grid-row:1;position:relative;top:auto;min-height:0;justify-content:center}
+  .phone-frame{height:min(690px,calc(100dvh - 154px));max-width:calc(100vw - 87px)}
+  .reactions{flex-basis:44px;padding-top:60px}
+  .rightbar{grid-column:1;grid-row:2;padding:16px}
+  .modal-actions{flex-direction:column-reverse}
+}
+
 </style>
 </head>
 <body>
@@ -30,23 +77,15 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
 <div id="studio" class="hidden">
 <header>
   <div class="logo"><span class="logo-symbol">▶</span> AutoClips <span style="color:#bd90f9">Studio</span></div>
-  <div class="topright"><span class="pill green" id="channelLabel">● Canal YouTube</span><span class="pill" id="quotaTop">0 / 20 hoje</span><button class="btn soft" id="logoutBtn">Sair</button></div>
+  <div class="topright"><span class="pill green" id="channelLabel">● Canal YouTube</span><button class="btn soft" id="logoutBtn">Sair</button></div>
 </header>
 <div class="mobile-nav"><button class="btn" id="toggleSources">+ Adicionar links</button><button class="btn" id="mobileNext">Próximo ↓</button></div>
 <div class="wrap">
   <aside class="sidebar" id="sidebar">
-    <h3 style="margin:0 0 15px">Painel de controle</h3>
-    <button class="nav active" type="button"><i class="dot"></i> Feed de cortes</button>
-    <button class="nav" type="button" id="navSources">＋ Importar links</button>
+    <h3 class="panel-title">Painel de controle</h3>
+    <button class="nav active" type="button" id="feedNav"><i class="dot"></i> Feed de cortes</button>
     <div class="aside-heading">Publicações</div>
     <div class="stat-big" id="used">0 <span style="font-size:17px;color:#a4abc0">/20</span></div>
-    <div class="small">Shorts enviados / reservados hoje</div>
-    <div class="progress"><span id="usedBar"></span></div>
-    <div class="small" id="pending">0 aguardando</div>
-    <div class="line"></div>
-    <div class="aside-heading">Atalhos</div>
-    <div class="small">↑ Próximo corte<br>↓ Corte anterior<br>← / → Navegar<br>♥ Publicar privado<br>👎 Reprovar e refazer</div>
-    <div class="notice">20 Shorts por dia no horário de São Paulo. Aprovados além do limite aguardam o próximo dia, automaticamente.</div>
   </aside>
   <main class="feed-zone">
     <div class="phone-frame" id="phoneFrame">
@@ -63,39 +102,30 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
     </div>
   </main>
   <aside class="rightbar" id="rightbar">
-    <h3 class="panel-title">Adicionar vídeos</h3>
-    <p class="small">Cole um link do YouTube por linha (até 25 por envio). Pode adicionar quantos lotes desejar, respeitando o armazenamento disponível.</p>
-    <textarea id="links" class="input" rows="6" placeholder="https://youtu.be/...&#10;https://www.youtube.com/watch?v=..."></textarea>
-    <p class="hint">Ao adicionar um link, você declara que tem permissão para utilizar e republicar o vídeo. O AutoClips apenas cria os cortes; a publicação ocorre após sua aprovação.</p>
-    <button class="btn primary" id="addLinks">＋ Enviar para edição</button>
-    <div class="notice">O download direto do YouTube pode sofrer bloqueio anti-bot. Links MP4 hospedados também são aceitos. Se a importação for bloqueada, você pode enviar o arquivo original já comprimido abaixo, para o AutoClips gerar os cortes.</div>
-    <div class="line"></div>
-    <h3 class="panel-title" style="font-size:16px">Enviar vídeo original (MP4)</h3>
-    <p class="small">Para vídeos longos que o YouTube bloquear: envie o vídeo original ou a versão comprimida, até 180 MB. O AutoClips transcreve e cria cortes para aprovação; não publica automaticamente.</p>
-    <input id="sourceFile" type="file" accept="video/mp4,.mp4" class="input" aria-label="Selecionar vídeo original"/>
-    <button class="btn" id="uploadSource">⬆ Enviar para criar cortes</button>
-    <div class="line"></div>
-    <h3 class="panel-title" style="font-size:16px">Short pronto (MP4)</h3>
-    <p class="small">Se já tiver o Short editado, envie-o diretamente. Ele aparecerá no feed para você aprovar e publicar.</p>
-    <input id="readyFile" type="file" accept="video/mp4,.mp4" class="input" aria-label="Selecionar MP4 pronto"/>
-    <button class="btn" id="uploadReady">⬆ Importar MP4 pronto</button>
-    <div class="line"></div>
-    <h3 class="panel-title" style="font-size:16px">Revisão deste corte</h3>
-    <div class="small" id="reviewStatus">Selecione um vídeo no feed.</div>
-    <label class="small" style="display:flex;align-items:flex-start;gap:7px;margin:12px 0"><input type="checkbox" id="rightsPublish"/> Confirmo que tenho direitos ou autorização válida para publicar este corte no YouTube. A aprovação editorial, sozinha, não comprova esses direitos.</label>
-    <div class="feedback">
-      <label class="small">O que precisa mudar?</label>
-      <textarea id="comment" class="input" placeholder="Ex.: mais contexto no começo, legenda maior, melhor imagem, mudar o gancho..."></textarea>
-      <button id="requestRemake" class="btn">👎 Desaprovar e solicitar nova versão</button>
-    </div>
-    <div class="line"></div>
-    <h3 class="panel-title" style="font-size:16px">Fila de processamento</h3>
-    <div id="sourceList"><span class="small">Nenhum link recebido.</span></div>
-    <button class="btn soft" id="refresh">↻ Atualizar feed e fila</button>
+    <h3 class="panel-title">Adicionar vídeo</h3>
+    <label for="links" class="small">Link do vídeo</label>
+    <input id="links" class="input" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+           placeholder="https://youtu.be/..." aria-label="Link do vídeo do YouTube"/>
+    <button class="btn primary" type="button" id="addLinks">Enviar para edição</button>
   </aside>
 </div>
 </div>
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+<div id="remakeModal" class="modal-backdrop hidden" aria-hidden="true">
+  <section class="modal-box" role="dialog" aria-modal="true" aria-labelledby="remakeTitle" aria-describedby="remakeHelp">
+    <h2 id="remakeTitle">Solicitar reedição</h2>
+    <p id="remakeHelp">O que está errado neste corte? Descreva o que precisa ser corrigido.</p>
+    <form id="remakeForm">
+      <label class="small" for="remakeReason">Instruções para a nova edição</label>
+      <textarea id="remakeReason" class="input" required maxlength="1400"
+        placeholder="Ex.: falta contexto no começo, trocar a imagem, corrigir a legenda ou melhorar o gancho..."></textarea>
+      <div class="modal-actions">
+        <button class="btn soft" type="button" id="cancelRemake">Cancelar</button>
+        <button class="btn primary" type="submit" id="sendRemake">Enviar para reedição</button>
+      </div>
+    </form>
+  </section>
+</div>
 <script>
 const $=id=>document.getElementById(id);let feed=[],current=0,changing=false,touchY=null;
 const req=async(url,options={})=>{const headers={'Accept':'application/json',...(options.body?{'Content-Type':'application/json','X-Autoclips-Action':'1'}:{})};const response=await fetch(url,{...options,headers:{...headers,...options.headers},credentials:'same-origin'});let data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||('Erro HTTP '+response.status));return data};

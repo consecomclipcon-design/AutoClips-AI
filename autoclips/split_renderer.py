@@ -119,10 +119,50 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return count
 
 
+def write_static_hook(ass: Path, start: float, end: float,
+                      top: str, bottom: str) -> int:
+    """One elegant, motionless, two-line caption for the ENTIRE video.
+
+    There are no word-by-word highlights. The hook stays anchored in the
+    dark central divider, clear of the real video and contextual photograph.
+    """
+    validate_window(start, end)
+    top, bottom = _ass_safe(top).upper(), _ass_safe(bottom).upper()
+    if not (6 <= len(top) <= 26 and 5 <= len(bottom) <= 26):
+        raise ValueError("Gancho precisa ter duas linhas curtas e legíveis.")
+    duration = _ass_time(end - start)
+    content = """[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: HookTop,DejaVu Sans,66,&H00FFFFFF,&H00FFFFFF,&H00140C0C,&H60000000,-1,0,0,0,100,100,0.5,0,1,5,1,5,26,26,0,1
+Style: HookAccent,DejaVu Sans,76,&H0058DFFF,&H0058DFFF,&H00140C0C,&H60000000,-1,0,0,0,100,100,0.3,0,1,6,1,5,24,24,0,1
+Style: Underline,DejaVu Sans,10,&H00FF52EB,&H00FF52EB,&H00FF52EB,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    # Divider in PlayRes=1080x1920 lies between y=826 and 1094.
+    # Fixed text at y=913 and y=1004 leaves generous clearance and
+    # works for both HD (1080x1920) and half-size (540x960) rendering.
+    content += (f'Dialogue: 2,0:00:00.00,{duration},HookTop,,0,0,0,,'
+                f'{{\\an5\\pos(540,913)}}{top}\n')
+    content += (f'Dialogue: 2,0:00:00.00,{duration},HookAccent,,0,0,0,,'
+                f'{{\\an5\\pos(540,1004)}}{bottom}\n')
+    content += (f'Dialogue: 1,0:00:00.00,{duration},Underline,,0,0,0,,'
+                r'{\\an7\\pos(390,846)\\p1\\1c&H00FF52EB&}m 0 0 l 300 0 300 7 0 7' '\n')
+    ass.write_text(content, encoding='utf-8')
+    return 2
+
+
 def render_split(*, source: str | Path, words: list[dict],start: float,end: float,
                  output: str | Path, image: str | Path | None = None,
                  focal_x: float=.5, credit: str='', size: tuple[int,int]=(540,960),
-                 hook_white: str | None=None, hook_red: str | None=None) -> dict:
+                 hook_white: str | None=None, hook_red: str | None=None,
+                 static_hook: tuple[str,str] | None=None) -> dict:
     validate_window(start,end)
     src=validate_media(source)
     if image is not None:
@@ -133,10 +173,15 @@ def render_split(*, source: str | Path, words: list[dict],start: float,end: floa
     out=Path(output).resolve()
     out.parent.mkdir(parents=True,exist_ok=True)
     ass=out.with_suffix('.ass')
-    if hook_white or hook_red:
+    if static_hook is not None:
+        count=write_static_hook(ass,start,end,static_hook[0],static_hook[1])
+        caption_mode='static_hook'
+    elif hook_white or hook_red:
         count=write_editorial_captions(words,start,end,ass,hook_white=hook_white or '',hook_red=hook_red or '')
+        caption_mode='legacy_editorial'
     else:
         count=write_middle_captions(words,start,end,ass)
+        caption_mode='spoken_captions'
     if credit:
         # Make Creative Commons attribution visible in the final MP4 itself,
         # not just in metadata that disappears on reposts.
@@ -166,4 +211,6 @@ def render_split(*, source: str | Path, words: list[dict],start: float,end: floa
     subprocess.run(cmd,cwd=str(out.parent),capture_output=True,text=True,check=True)
     return {'output':str(out),'duration':round(end-start,2),'dimensions':f'{size[0]}x{size[1]}',
             'layout':'top_video_middle_captions_bottom_image','image_mode':mode,'caption_events':count,
-            'caption_strip':'center','credit':safe_credit(credit)}
+            'caption_strip':'center','caption_mode':caption_mode,
+            'hook_text':(' '.join(static_hook) if static_hook else ''),
+            'credit':safe_credit(credit)}

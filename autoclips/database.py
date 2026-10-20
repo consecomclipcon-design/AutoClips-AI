@@ -82,7 +82,7 @@ def update(table: str, id: str, **values: Any) -> None:
     if table not in {"projects", "clips", "jobs"} or not values:
         raise ValueError("Atualização inválida")
     allowed = {
-        "projects": {"media", "transcript", "duration", "status", "error"},
+        "projects": {"name", "media", "transcript", "duration", "status", "error"},
         "clips": {"path", "status", "error", "uploaded_url"},
         "jobs": {"status", "result", "error", "updated"},
     }

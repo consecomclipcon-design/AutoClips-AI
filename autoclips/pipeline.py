@@ -11,6 +11,7 @@ from .ranking import suggest
 from .renderer import render
 from .split_renderer import render_split, validate_window, clamp_focal
 from .contextual_image import fetch_public_domain_image, topic_terms
+from .static_hook import generate_static_hook
 from .context import contextual_window
 from .settings import home
 from .transcript import transcribe, save_transcript, load_transcript
@@ -252,10 +253,15 @@ def _render_split(clip_id: str, image_file: str | None, focal_x: float,
         selected_image = image_file or (photo["path"] if photo else None)
         if photo:
             photo_credit = photo["credit"]
+        # One fixed editorial question for the entire clip, grounded in
+        # the selected speech — no word-by-word animated caption anymore.
+        hook = generate_static_hook(
+            str(project.get("name") or ""), transcript["segments"],
+            float(clip["start"]), float(clip["end"]))
         outcome = render_split(source=source,image=selected_image,
                                words=transcript["words"],start=clip["start"],end=clip["end"],
                                output=target,focal_x=focal_x,size=(540,960),credit=photo_credit,
-                               hook_white=hook_white or None,hook_red=hook_red or None)
+                               static_hook=(hook["top"],hook["bottom"]))
         image_kind = ("owner_provided" if image_file else
                       photo["mode"] if photo else "source_frame_preview_only")
         quality = {
@@ -266,9 +272,13 @@ def _render_split(clip_id: str, image_file: str | None, focal_x: float,
             "image_source_url": photo["source_page"] if photo else "",
             "image_license_url": photo["license_url"] if photo else "",
             "caption_events": outcome["caption_events"],
+            "caption_mode": outcome["caption_mode"],
+            "static_hook": outcome["hook_text"],
+            "hook_source": hook["source"],
             "layout": outcome["layout"],
             "auto_publish_ready": (transcript.get("language") == "pt" and
-                                   outcome["caption_events"] > 0 and
+                                   outcome["caption_mode"] == "static_hook" and
+                                   outcome["caption_events"] == 2 and
                                    image_kind in {"wikimedia_public_domain", "wikimedia_cc_by", "owner_provided"})
         }
         # Do not label an ordinary extracted frame as context photography.

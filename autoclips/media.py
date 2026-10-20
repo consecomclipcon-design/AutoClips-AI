@@ -218,6 +218,14 @@ def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -
                 raise RuntimeError("Fonte acima do limite de 180 MB")
             target = folder / ("source" + files[0].suffix.lower())
             os.replace(files[0], target)
+            # Preserve the video's real title for topical hooks/photos. Keep
+            # only non-sensitive text, never downloader URLs or token metadata.
+            actual_title = re.sub(r"[\\r\\n\\t]+", " ", str(info.get("title") or ""))
+            actual_title = re.sub(r"\\s+", " ", actual_title).strip()[:150]
+            if actual_title:
+                (folder / "source_metadata.json").write_text(
+                    json.dumps({"title": actual_title, "video_id": video_id},
+                               ensure_ascii=False), encoding="utf-8")
             print("AUTOCLIPS_SOURCE_IMPORTED", video_id, client,
                   "route", "ipv6" if use_ipv6 else "ipv4",
                   "bytes", target.stat().st_size, flush=True)

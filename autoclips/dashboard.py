@@ -97,6 +97,29 @@ def _db_init():
         if r.rowcount:
             print("AUTOCLIPS_VIDIQ_CACHE_RECOVERY_ENQUEUED",r.rowcount,flush=True)
 
+        # Owner-requested video link from this ChatGPT session: review only.
+        # No channel rights are implied and nothing is approved for publishing.
+        # The exact ID comes from the ClipCon Railway environment, not from
+        # a public unauthenticated endpoint. Idempotent across all restarts.
+        editorial_id = os.getenv("AUTOCLIPS_EDITORIAL_REVIEW_VIDEO_ID", "").strip()
+        if re.fullmatch(r"[A-Za-z0-9_-]{11}", editorial_id):
+            source_url = "https://www.youtube.com/watch?v=" + editorial_id
+            existing = c.execute("""SELECT 1 FROM dashboard_sources
+                    WHERE original_video_id=? OR link=? LIMIT 1""",
+                    (editorial_id, source_url)).fetchone()
+            if not existing:
+                waiting = c.execute("""SELECT count(*) FROM dashboard_sources
+                       WHERE status IN ('queued','importing','rendering')""").fetchone()[0]
+                if waiting < 60:
+                    c.execute("""INSERT OR IGNORE INTO dashboard_sources
+                        (id,link,source_kind,status,created_at,updated_at,original_video_id)
+                        VALUES (?,?, 'youtube','queued',?,?,?)""",
+                        ("src_chat_review_" + editorial_id, source_url,
+                         db.now(), db.now(), editorial_id))
+                    print("AUTOCLIPS_CHAT_REVIEW_LINK_QUEUED", editorial_id, flush=True)
+        elif editorial_id:
+            print("AUTOCLIPS_CHAT_REVIEW_LINK_INVALID", flush=True)
+
         # One-time NASA/JPL public-domain validation requested by the owner.
         # Never logs signed media URL and never reposts on restart.
         nasa_url = os.getenv("AUTOCLIPS_PRIVATE_VALIDATION_MEDIA_URL", "")

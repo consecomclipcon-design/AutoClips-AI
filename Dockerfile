@@ -13,7 +13,7 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 ENV YT_DLP_NODE_PATH=/usr/local/bin/node
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg fonts-dejavu-core ca-certificates gosu \
+    ffmpeg fonts-dejavu-core fonts-lato ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml README.md ./
 COPY autoclips ./autoclips

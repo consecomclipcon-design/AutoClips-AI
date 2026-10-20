@@ -139,8 +139,8 @@ WrapStyle: 0
 ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: HookTop,DejaVu Sans,66,&H00FFFFFF,&H00FFFFFF,&H00140C0C,&H60000000,-1,0,0,0,100,100,0.5,0,1,5,1,5,26,26,0,1
-Style: HookAccent,DejaVu Sans,82,&H000000FF,&H000000FF,&H00140C0C,&H60000000,-1,0,0,0,100,100,0.3,0,1,6,1,5,24,24,0,1
+Style: HookTop,Lato,75,&H00FFFFFF,&H00FFFFFF,&H00140C0C,&H60000000,-1,0,0,0,100,100,0.5,0,1,5,1,5,26,26,0,1
+Style: HookAccent,Lato,85,&H000000FF,&H000000FF,&H00140C0C,&H60000000,-1,0,0,0,100,100,0.3,0,1,6,1,5,24,24,0,1
 Style: Underline,DejaVu Sans,10,&H00FF52EB,&H00FF52EB,&H00FF52EB,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

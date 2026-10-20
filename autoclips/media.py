@@ -26,8 +26,11 @@ def import_local(filename: str, project_id: str) -> Path:
 
 
 YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
-MAX_SOURCE_SECONDS = 4 * 60 * 60  # podcasts longos: selecionar qualidade menor automaticamente
-MAX_SOURCE_BYTES = 180 * 1024 * 1024  # 500 MB Railway volume also holds intermediates.
+# 180 MiB cloud default. Desktop can opt into larger videos on its own disk.
+# Bound local configuration to a safe integer range (never silently unlimited).
+MAX_SOURCE_SECONDS = max(60, min(24 * 3600, int(os.getenv("AUTOCLIPS_MAX_SOURCE_SECONDS", str(4 * 3600)))))
+MAX_SOURCE_BYTES = max(16 * 1024 * 1024, min(2 * 1024**4,
+    int(os.getenv("AUTOCLIPS_MAX_SOURCE_BYTES", str(180 * 1024 * 1024)))))
 
 
 def _youtube_id(url: str) -> str | None:
@@ -78,6 +81,9 @@ def _source_format(duration: float) -> str:
     Filters prioritize muxed H.264+AAC streams; estimated sizes are not guaranteed.
     Progress hooks enforce an additional hard cap while downloading.
     """
+    if os.getenv("AUTOCLIPS_DESKTOP") == "1":
+        # Desktop storage is user-selected, not a tiny Railway volume.
+        return "bv*[height<=?1080]+ba/b[height<=?1080]/best"
     if duration > 75*60:
         height = 360
     elif duration > 35*60:
@@ -106,7 +112,7 @@ def _youtube_options(temp_dir: Path, player_client: str, provider: str | None,
         # Safe even for chunked manifests: abort if the file exceeds our volume budget.
         downloaded = progress.get("downloaded_bytes")
         if isinstance(downloaded, (int, float)) and downloaded > MAX_SOURCE_BYTES:
-            raise ValueError("O vídeo excedeu 180 MB; seleção automática de tamanho falhou")
+            raise ValueError("O vídeo excedeu o limite configurado no AutoClips Desktop")
 
     # Optional managed network egress, injected as a PRIVATE Railway variable.
     # No proxy account or secret is ever stored in this source code.
@@ -166,7 +172,7 @@ def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -
     try:
         import yt_dlp
     except ImportError as exc:
-        raise RuntimeError("yt-dlp não instalado no Railway") from exc
+        raise RuntimeError("yt-dlp não instalado no ambiente AutoClips") from exc
 
     provider = _safe_pot_provider()
     folder = (home() / "projects" / project_id).resolve()
@@ -215,7 +221,7 @@ def import_youtube_approved(url: str, project_id: str, owner_authorized: bool) -
             if len(files) != 1 or files[0].stat().st_size == 0:
                 raise RuntimeError("MP4 final ausente após download")
             if files[0].stat().st_size > MAX_SOURCE_BYTES:
-                raise RuntimeError("Fonte acima do limite de 180 MB")
+                raise RuntimeError("Fonte acima do limite de tamanho configurado")
             target = folder / ("source" + files[0].suffix.lower())
             os.replace(files[0], target)
             # Preserve the video's real title for topical hooks/photos. Keep

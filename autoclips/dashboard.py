@@ -65,6 +65,12 @@ def _db_init():
           source_id TEXT PRIMARY KEY, old_clip_id TEXT NOT NULL,
           new_clip_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS dashboard_static_hook_review(
+          original_clip_id TEXT PRIMARY KEY,
+          revised_clip_id TEXT,
+          status TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
         """)
         # Retry a bot-blocked link once for each materially new download
         # strategy. Normal UI reads and process restarts never burn retries.
@@ -1003,6 +1009,65 @@ def _queue_one_missing_context_photo_repair() -> None:
                          WHERE source_id=? AND status='claimed'""",(row["source_id"],))
 
 
+def _queue_one_static_hook_preview() -> None:
+    """Exactly one real, owner-requested preview of the new static-caption style.
+
+    Keep the previous clip and all its publication records unchanged.
+    This never grants publishing permission for the newly rendered revision.
+    """
+    import shutil
+    original_id = "clip_997b8722083c"  # Portuguese Muzy cut with vetted bottom photo
+    _db_init()
+    if shutil.disk_usage(home()).free < 245 * 1024 * 1024:
+        return
+    with db.conn() as c:
+        existing = c.execute("""SELECT 1 FROM dashboard_static_hook_review
+                                WHERE original_clip_id=?""", (original_id,)).fetchone()
+        busy = c.execute("""SELECT 1 FROM jobs WHERE status IN ('queued','running')
+                            LIMIT 1""").fetchone()
+        if existing or busy:
+            return
+        clip = c.execute("""SELECT k.id,k.project_id,k.start,k.end,k.path,
+                                  k.status,p.transcript
+                            FROM clips k JOIN projects p ON p.id=k.project_id
+                            WHERE k.id=?""", (original_id,)).fetchone()
+        if not clip or clip["status"] != "ready" or not clip["transcript"]:
+            return
+    old_qa = Path(clip["path"]).with_suffix(".qa.json") if clip["path"] else None
+    if not old_qa or not old_qa.is_file():
+        return
+    try:
+        qa = json.loads(old_qa.read_text(encoding="utf-8"))
+        if (qa.get("language") != "pt"
+                or qa.get("image_mode") not in
+                ("wikimedia_public_domain", "wikimedia_cc_by", "owner_provided")):
+            return
+        with db.conn() as c:
+            inserted = c.execute("""INSERT OR IGNORE INTO dashboard_static_hook_review
+                (original_clip_id,status,created_at) VALUES (?,'claimed',?)""",
+                (original_id,db.now())).rowcount
+        if not inserted:
+            return
+        result = pipeline.start_render_split(
+            clip["project_id"], float(clip["start"]), float(clip["end"]))
+        with db.conn() as c:
+            c.execute("""UPDATE dashboard_static_hook_review
+                         SET revised_clip_id=?,status='rendering'
+                         WHERE original_clip_id=?""", (result["clip_id"], original_id))
+            c.execute("""INSERT OR IGNORE INTO dashboard_renders
+                         (clip_id,source_id,job_id,status,created_at)
+                         VALUES (?,NULL,?,'queued',?)""",
+                      (result["clip_id"],result["job_id"],db.now()))
+        print("AUTOCLIPS_STATIC_HOOK_PREVIEW_QUEUED",result["clip_id"],flush=True)
+    except Exception as exc:
+        with db.conn() as c:
+            c.execute("""UPDATE dashboard_static_hook_review SET status='failed'
+                         WHERE original_clip_id=? AND status='claimed'""",
+                      (original_id,))
+        print("AUTOCLIPS_STATIC_HOOK_PREVIEW_DEFERRED",
+              type(exc).__name__,flush=True)
+
+
 def _worker():
     while True:
         try:
@@ -1010,6 +1075,7 @@ def _worker():
             _archive_reviewed_sources()
             _queue_one_portuguese_quality_retest()
             _queue_one_missing_context_photo_repair()
+            _queue_one_static_hook_preview()
             _tick()
         except Exception as exc:
             print("AUTOCLIPS_DASHBOARD_WORKER_ERROR",type(exc).__name__,flush=True)
@@ -1029,6 +1095,8 @@ def _safe_quality_audit(clip_id: str) -> None:
               "language",qa.get("language"),
               "image_mode",qa.get("image_mode"),
               "captions",qa.get("caption_events"),
+              "caption_mode",qa.get("caption_mode","legacy"),
+              "hook",str(qa.get("static_hook") or "")[:75],
               "publish_ready",qa.get("auto_publish_ready"),flush=True)
     except Exception:
         pass

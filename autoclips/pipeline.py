@@ -77,7 +77,14 @@ def _ingest(id_: str, source: str, source_kind: str, authorized: bool, auto_tran
                  else import_hosted_approved(source, id_, authorized) if source_kind == "hosted"
                  else import_youtube_approved(source, id_, authorized))
         info = probe(media)
-        db.update("projects", id_, media=str(media), duration=info["duration"], status="imported")
+        props = {"media": str(media), "duration": info["duration"], "status": "imported"}
+        if source_kind == "youtube":
+            metadata_file = Path(media).parent / "source_metadata.json"
+            if metadata_file.is_file():
+                meta = json.loads(metadata_file.read_text(encoding="utf-8"))
+                if meta.get("title") and meta.get("video_id"):
+                    props["name"] = str(meta["title"])[:150]
+        db.update("projects", id_, **props)
         if not auto_transcribe:
             return {"media": str(media), **info, "next": "transcribe_project"}
         return _transcribe(id_, None)

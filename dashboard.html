@@ -79,7 +79,7 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
   <div class="logo"><span class="logo-symbol">▶</span> AutoClips <span style="color:#bd90f9">Studio</span></div>
   <div class="topright"><span class="pill green" id="channelLabel">● Canal YouTube</span><button class="btn soft" id="logoutBtn">Sair</button></div>
 </header>
-<div class="mobile-nav"><button class="btn" id="toggleSources">+ Adicionar links</button><button class="btn" id="mobileNext">Próximo ↓</button></div>
+
 <div class="wrap">
   <aside class="sidebar" id="sidebar">
     <h3 class="panel-title">Painel de controle</h3>
@@ -127,90 +127,117 @@ header{height:72px;padding:0 28px;border-bottom:1px solid var(--line);display:fl
   </section>
 </div>
 <script>
-const $=id=>document.getElementById(id);let feed=[],current=0,changing=false,touchY=null;
+const $=id=>document.getElementById(id);let feed=[],current=0,changing=false,touchY=null,remakeClipId=null,submitting=false;
 const req=async(url,options={})=>{const headers={'Accept':'application/json',...(options.body?{'Content-Type':'application/json','X-Autoclips-Action':'1'}:{})};const response=await fetch(url,{...options,headers:{...headers,...options.headers},credentials:'same-origin'});let data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||('Erro HTTP '+response.status));return data};
 const showToast=msg=>{const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(showToast.timeout);showToast.timeout=setTimeout(()=>t.classList.add('hidden'),4000)};
 function sourceState(s){const labels={queued:'Aguardando',importing:'Baixando/transcrevendo',rendering:'Editando os cortes',awaiting_review:'Pronto para revisar',failed:'Falha'};return labels[s]||s}
 function publishedState(s){const labels={queued:'Aprovado · na fila privada',publishing:'Publicando no YouTube...',published:'Publicado no YouTube',failed_review:'Falha de publicação · revisão necessária'};return labels[s]||'Aguardando aprovação'}
 function changeClip(n){if(!feed.length)return;current=(n+feed.length)%feed.length;renderClip()}
-function renderClip(){const v=$('player'),item=feed[current];if(!item){v.pause();v.removeAttribute('src');v.classList.add('hidden');$('videoOverlay').classList.add('hidden');$('position').classList.add('hidden');$('emptyFeed').classList.remove('hidden');$('reviewStatus').textContent='Selecione um vídeo no feed.';return;}
- $('emptyFeed').classList.add('hidden');v.classList.remove('hidden');$('videoOverlay').classList.remove('hidden');$('position').classList.remove('hidden');
- v.pause();v.src=item.mediaUrl;v.load();$('position').textContent=(current+1)+' / '+feed.length;
+function renderClip(){
+ const v=$('player'),item=feed[current];
+ if(!item){
+  v.pause();v.removeAttribute('src');v.classList.add('hidden');
+  $('videoOverlay').classList.add('hidden');$('position').classList.add('hidden');
+  $('emptyFeed').classList.remove('hidden');$('approve').disabled=true;$('disapprove').disabled=true;return;
+ }
+ $('emptyFeed').classList.add('hidden');
+ v.classList.remove('hidden');$('videoOverlay').classList.remove('hidden');$('position').classList.remove('hidden');
+ v.pause();
+ if(v.getAttribute('src')!==item.mediaUrl){v.src=item.mediaUrl;v.load();}
+ $('position').textContent=(current+1)+' / '+feed.length;
  $('videoTitle').textContent=item.project_name||'AutoClips · ClipCon';
- $('videoMeta').textContent=Math.round(item.end-item.start)+'s · '+(item.publication_status?publishedState(item.publication_status):item.decision==='dislike'?'Reprovado · em revisão':'Aguardando aprovação');
- $('reviewStatus').textContent=item.publication_status?publishedState(item.publication_status):(item.decision==='dislike'?'Reprovado':'Pendente');
- $('comment').value=item.feedback||'';
- $('rightsPublish').checked=false;
- $('approve').disabled=Boolean(item.publication_status);
- $('approve').title=item.publication_status?'Esse corte já está na fila do YouTube':'Curtir para publicar em modo privado';
+ $('videoMeta').textContent=Math.round(item.end-item.start)+'s · '+
+    (item.publication_status?publishedState(item.publication_status):
+      item.decision==='dislike'?'Em reedição':'Aguardando aprovação');
+ $('approve').disabled=Boolean(item.publication_status)||submitting;
+ $('disapprove').disabled=Boolean(item.publication_status)||item.decision==='dislike'||submitting;
+ $('approve').title=item.publication_status?'Já encaminhado ao YouTube':'Publicar este corte como privado';
 }
-async function refresh(){try{
- const old=feed[current]?.id;
- const [data,st,src]=await Promise.all([req('/api/console/feed'),req('/api/console/status'),req('/api/console/sources')]);
- feed=data.clips;const ix=feed.findIndex(x=>x.id===old);current=ix>=0?ix:Math.min(current,Math.max(0,feed.length-1));renderClip();
- $('used').innerHTML=st.quota.used+' <span style="font-size:17px;color:#a4abc0">/20</span>';
- $('usedBar').style.width=Math.round(100*st.quota.used/20)+'%';
- $('pending').textContent=st.quota.queued+' corte(s) esperando publicação';$('quotaTop').textContent=st.quota.used+' / 20 hoje';
- $('channelLabel').textContent=st.youtube.connected?'● '+(st.youtube.channelName||'ClipCon'):'○ YouTube desconectado';
- $('sourceList').innerHTML='';
- for(const s of src.sources.slice(0,9)){const div=document.createElement('div');div.className='source';
- const name=document.createElement('div');name.className='status '+(s.status==='failed'?'fail':s.status==='awaiting_review'?'ok':'');name.textContent=sourceState(s.status);
- const detail=document.createElement('div');detail.className='small';detail.textContent=(s.source_kind==='youtube'?'YouTube':'MP4')+' · '+new Date(s.created_at).toLocaleString('pt-BR');
- div.append(name,detail);
- if(s.error){const e=document.createElement('div');e.className='small';e.textContent=s.error.slice(0,120);div.append(e)}
- $('sourceList').append(div)}
- if(!src.sources.length)$('sourceList').innerHTML='<span class="small">Nenhum link recebido.</span>';
-}catch(e){showToast('Falha ao atualizar: '+e.message)}}
-async function vote(decision){const item=feed[current];if(!item){showToast('Adicione um vídeo primeiro.');return}
- if(decision==='like'&&item.publication_status){showToast('Este vídeo já está na fila/publicado.');return}
+function advanceAfterAction(actedId){
+ const start=feed.findIndex(c=>c.id===actedId);
+ if(feed.length<2||start<0)return;
+ let next=(start+1)%feed.length;
+ for(let i=1;i<feed.length;i++){
+  const idx=(start+i)%feed.length;
+  const candidate=feed[idx];
+  if(!candidate.publication_status&&candidate.decision!=='dislike'){next=idx;break;}
+ }
+ current=next;renderClip();
+}
+function toggleRemakeModal(open){
+ const modal=$('remakeModal');
+ modal.classList.toggle('hidden',!open);
+ modal.setAttribute('aria-hidden',String(!open));
+ if(open){$('remakeReason').focus();}
+ else {remakeClipId=null;$('disapprove').focus();}
+}
+function openRemakeModal(){
+ const item=feed[current];
+ if(!item){showToast('Não há corte para editar.');return;}
+ if(item.publication_status){showToast('Este vídeo já foi encaminhado para publicação.');return;}
+ remakeClipId=item.id;
+ $('remakeReason').value='';
+ toggleRemakeModal(true);
+}
+async function refresh(){
  try{
- if(decision==='like'&&!$('rightsPublish').checked){showToast('Confirme os direitos de uso antes de publicar.');return}
- const body={clip_id:item.id,decision,comment:$('comment').value.trim(),rights_confirmed:decision==='like'&&$('rightsPublish').checked};
- const res=await req('/api/console/review',{method:'POST',body:JSON.stringify(body)});
- if(decision==='like')showToast('♥ Aprovado! Publicação PRIVADA colocada na fila.');
- else showToast(res.action==='remake_queued'?'👎 Nova versão em produção.':'👎 Feedback salvo.');
- await refresh();
- }catch(e){showToast(e.message)}}
+  const old=feed[current]?.id;
+  const [data,st]=await Promise.all([req('/api/console/feed'),req('/api/console/status')]);
+  feed=data.clips||[];
+  const ix=feed.findIndex(c=>c.id===old);
+  current=ix>=0?ix:Math.min(current,Math.max(0,feed.length-1));
+  renderClip();
+  const used=st.quota.used,limit=st.quota.limit||20;
+  $('used').innerHTML=used+' <span style="font-size:17px;color:#a4abc0">/'+limit+'</span>';
+  $('channelLabel').textContent=st.youtube.connected?'● '+(st.youtube.channelName||'ClipCon'):'○ YouTube desconectado';
+ }catch(e){showToast('Falha ao atualizar: '+e.message);}
+}
+async function approveCurrent(){
+ const item=feed[current];if(!item){showToast('Não há corte para publicar.');return;}
+ if(item.publication_status){showToast('Este corte já foi encaminhado.');return;}
+ if(submitting)return;
+ // Each source needs a distinct, explicit rights confirmation.
+ if(!window.confirm('Confirmo que tenho os direitos ou autorização para publicar ESTE vídeo como privado no YouTube. Deseja continuar?'))return;
+ submitting=true;$('approve').disabled=true;$('disapprove').disabled=true;
+ try{
+  await req('/api/console/review',{method:'POST',body:JSON.stringify({
+   clip_id:item.id,decision:'like',rights_confirmed:true,comment:''
+  })});
+  showToast('Publicado na fila privada. Próximo corte.');
+  advanceAfterAction(item.id);
+  await refresh();
+ }catch(e){showToast('Não foi possível publicar: '+e.message);}
+ finally{submitting=false;renderClip();}
+}
+async function submitRemake(e){
+ e.preventDefault();
+ const id=remakeClipId,comment=$('remakeReason').value.trim();
+ if(!id||submitting)return;
+ if(!comment){$('remakeReason').focus();showToast('Descreva o problema para solicitar a reedição.');return;}
+ submitting=true;$('sendRemake').disabled=true;
+ try{
+  const res=await req('/api/console/review',{method:'POST',body:JSON.stringify({
+   clip_id:id,decision:'dislike',comment,rights_confirmed:false
+  })});
+  toggleRemakeModal(false);
+  showToast(res.action==='remake_queued'?'Solicitação de reedição enviada.':'Feedback salvo. Próximo corte.');
+  advanceAfterAction(id);
+  await refresh();
+ }catch(err){showToast('Erro ao solicitar reedição: '+err.message);}
+ finally{submitting=false;$('sendRemake').disabled=false;}
+}
 async function boot(){const s=await req('/auth/session');$('loginShell').classList.toggle('hidden',s.loggedIn);$('studio').classList.toggle('hidden',!s.loggedIn);if(s.loggedIn)await refresh()}
 $('loginCard').addEventListener('submit',async e=>{e.preventDefault();try{await req('/auth/login',{method:'POST',body:JSON.stringify({password:$('password').value})});$('password').value='';$('loginError').classList.add('hidden');await boot()}catch(err){$('loginError').textContent='Não foi possível entrar: '+err.message;$('loginError').classList.remove('hidden')}});
 $('logoutBtn').onclick=async()=>{await req('/auth/logout',{method:'POST',body:JSON.stringify({})});location.reload()};
-$('prev').onclick=()=>changeClip(-1);$('next').onclick=()=>changeClip(1);$('mobileNext').onclick=()=>changeClip(1);
-$('approve').onclick=()=>vote('like');$('disapprove').onclick=()=>vote('dislike');$('requestRemake').onclick=()=>vote('dislike');$('refresh').onclick=refresh;
-$('navSources').onclick=()=>$('links').focus();$('toggleSources').onclick=()=>$('links').scrollIntoView({behavior:'smooth'});
-$('uploadSource').onclick=async()=>{
- const file=$('sourceFile').files[0];
- if(!file){showToast('Selecione o vídeo original em MP4.');return}
- if(file.size>180*1024*1024||file.size<1024){
-   showToast('O MP4 original deve ter até 180 MB. Comprima o arquivo antes de enviar.');return
- }
- $('uploadSource').disabled=true;$('uploadSource').textContent='Transferindo original...';
- try{
-   const response=await fetch('/api/console/upload-source',{method:'POST',
-     credentials:'same-origin',headers:{'Content-Type':'video/mp4','X-Autoclips-Action':'1'},body:file});
-   const data=await response.json().catch(()=>({}));
-   if(!response.ok)throw Error(data.error||('HTTP '+response.status));
-   $('sourceFile').value='';
-   showToast('Vídeo recebido! O AutoClips começará a transcrever e criar cortes.');
-   await refresh();
- }catch(e){showToast('Importação falhou: '+e.message)}
- finally{$('uploadSource').disabled=false;$('uploadSource').textContent='⬆ Enviar para criar cortes'}
-};
-$('uploadReady').onclick=async()=>{
- const file=$('readyFile').files[0];if(!file){showToast('Escolha um MP4 antes.');return}
- if(file.size>180*1024*1024||file.size<1000){showToast('MP4 precisa ter de 1KB a 180MB.');return}
- $('uploadReady').disabled=true;$('uploadReady').textContent='Enviando vídeo...';
- try{
-   const resp=await fetch('/api/console/upload-ready',{method:'POST',
-     credentials:'same-origin',headers:{'Content-Type':'video/mp4',
-     'X-Autoclips-Action':'1'},body:file});
-   const result=await resp.json().catch(()=>({}));
-   if(!resp.ok)throw Error(result.error||('HTTP '+resp.status));
-   showToast('MP4 no feed! Revise e clique no coração para publicar.');
-   $('readyFile').value='';
-   await refresh();
- }catch(e){showToast('Falha no envio: '+e.message)}
- finally{$('uploadReady').disabled=false;$('uploadReady').textContent='⬆ Importar MP4 pronto'}
-};
+$('prev').onclick=()=>changeClip(-1);
+$('next').onclick=()=>changeClip(1);
+$('approve').onclick=approveCurrent;
+$('disapprove').onclick=openRemakeModal;
+$('remakeForm').addEventListener('submit',submitRemake);
+$('cancelRemake').onclick=()=>toggleRemakeModal(false);
+$('remakeModal').addEventListener('click',e=>{if(e.target===$('remakeModal')&&!submitting)toggleRemakeModal(false);});
+$('feedNav').onclick=()=>{$('phoneFrame').scrollIntoView({block:'start',behavior:'smooth'});};
+$('remakeReason').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){$('remakeForm').requestSubmit();}});
 $('addLinks').onclick=async()=>{
  const links=$('links').value.trim();if(!links){showToast('Cole pelo menos um link.');return}
  try{const res=await req('/api/console/links',{method:'POST',body:JSON.stringify({links,authorized:true})});const count=res.items.filter(x=>x.status==='queued').length;
@@ -218,7 +245,13 @@ $('addLinks').onclick=async()=>{
 $('phoneFrame').addEventListener('wheel',e=>{if(Math.abs(e.deltaY)<8)return;e.preventDefault();if(changing)return;changing=true;changeClip(e.deltaY>0?1:-1);setTimeout(()=>changing=false,420)},{passive:false});
 $('phoneFrame').addEventListener('touchstart',e=>{touchY=e.touches[0].clientY},{passive:true});
 $('phoneFrame').addEventListener('touchend',e=>{if(touchY===null)return;const d=touchY-e.changedTouches[0].clientY;if(Math.abs(d)>60)changeClip(d>0?1:-1);touchY=null},{passive:true});
-document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;if(e.key==='ArrowDown'||e.key==='ArrowRight')changeClip(1);else if(e.key==='ArrowUp'||e.key==='ArrowLeft')changeClip(-1)});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&!$('remakeModal').classList.contains('hidden')&&!submitting){toggleRemakeModal(false);return;}
+ if(!$('remakeModal').classList.contains('hidden'))return;
+ if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+ if(e.key==='ArrowDown'||e.key==='ArrowRight')changeClip(1);
+ else if(e.key==='ArrowUp'||e.key==='ArrowLeft')changeClip(-1);
+});
 boot().catch(e=>showToast(e.message));setInterval(()=>{if(!$('studio').classList.contains('hidden'))refresh()},18000);
 </script>
 </body></html>

@@ -142,8 +142,11 @@ function renderClip(){
  }
  $('emptyFeed').classList.add('hidden');
  v.classList.remove('hidden');$('videoOverlay').classList.remove('hidden');$('position').classList.remove('hidden');
- v.pause();
- if(v.getAttribute('src')!==item.mediaUrl){v.src=item.mediaUrl;v.load();}
+ // Polling the feed must not pause the currently playing video.
+ if(v.getAttribute('src')!==item.mediaUrl){
+  v.pause();v.src=item.mediaUrl;v.load();
+  v.play().catch(()=>{}); // autoplay may be denied until user interacts
+ }
  $('position').textContent=(current+1)+' / '+feed.length;
  $('videoTitle').textContent=item.project_name||'AutoClips · ClipCon';
  $('videoMeta').textContent=Math.round(item.end-item.start)+'s · '+
@@ -238,6 +241,7 @@ $('cancelRemake').onclick=()=>toggleRemakeModal(false);
 $('remakeModal').addEventListener('click',e=>{if(e.target===$('remakeModal')&&!submitting)toggleRemakeModal(false);});
 $('feedNav').onclick=()=>{$('phoneFrame').scrollIntoView({block:'start',behavior:'smooth'});};
 $('remakeReason').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){$('remakeForm').requestSubmit();}});
+$('links').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('addLinks').click();}});
 $('addLinks').onclick=async()=>{
  const links=$('links').value.trim();if(!links){showToast('Cole pelo menos um link.');return}
  try{const res=await req('/api/console/links',{method:'POST',body:JSON.stringify({links,authorized:true})});const count=res.items.filter(x=>x.status==='queued').length;

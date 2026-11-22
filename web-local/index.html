@@ -16,7 +16,7 @@ button:hover{filter:brightness(1.12)}button:disabled{opacity:.45;cursor:not-allo
 .controls{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}input,textarea{border:1px solid #384459;background:#0c111b;color:white;border-radius:9px;padding:10px;width:100%;font:inherit}
 input[type="number"]{max-width:130px}input[type="file"]{padding:8px;font-size:12px}label{font-size:13px;color:#bbc4d1;display:block;margin:12px 0 6px}
 input[type="checkbox"]{width:auto;margin-right:8px}small{color:#a6b0c0}.muted{color:#a6b0c0;font-size:12px}.notice{padding:11px 14px;background:#222b3b;border-radius:10px;font-size:13px;color:#c3cedf;margin-top:12px}
-#files{display:grid;gap:8px;margin:12px 0;max-height:290px;overflow:auto}.file{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#0e1420;border:1px solid #273244;border-radius:10px;padding:11px;text-align:left;color:#fff;width:100%}.file.active{border-color:#f1664c}.file small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:290px}
+select{border:1px solid #384459;background:#0c111b;color:white;border-radius:9px;padding:10px;width:100%;font:inherit} .saas-job{padding:9px 0;border-bottom:1px solid #293243;font-size:13px} .saas-job small{display:block;margin-top:4px} #files{display:grid;gap:8px;margin:12px 0;max-height:290px;overflow:auto}.file{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#0e1420;border:1px solid #273244;border-radius:10px;padding:11px;text-align:left;color:#fff;width:100%}.file.active{border-color:#f1664c}.file small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:290px}
 .preview{display:grid;grid-template-columns:1fr minmax(160px,230px);gap:16px;align-items:start}
 #source{width:100%;max-height:350px;background:#000;border-radius:12px}#composition{width:100%;aspect-ratio:9/16;background:#080b13;border-radius:12px}
 fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
@@ -57,7 +57,46 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 </section>
 </div>
 <div class="notice">Limitações da prova: exportação em tempo real até 180 segundos, 540×960, sem edição automática por IA. MP4 é usado apenas quando o navegador oferece suporte; caso contrário, a saída será WebM. O processamento interrompe ao fechar a aba.</div>
+
+<section class="panel" id="saas" style="margin-top:20px" aria-label="AutoClips SaaS">
+<h2>3. Conectar ao AutoClips SaaS (opcional)</h2>
+<p>O original longo permanece no computador. Somente o MP4 final aprovado pode ser enviado ao armazenamento privado. A publicação começa privada e exige confirmação.</p>
+<div class="field-row">
+<div style="flex:1;min-width:190px"><label for="saasApi">URL da API SaaS</label><input id="saasApi" placeholder="https://api.seudominio.com"></div>
+<div style="flex:1;min-width:190px"><label for="saasSupabase">URL do Supabase Auth</label><input id="saasSupabase" placeholder="https://projeto.supabase.co"></div>
+<div style="flex:1;min-width:190px"><label for="saasPublishable">Chave pública do projeto (não secret)</label><input id="saasPublishable" autocomplete="off" placeholder="sb_publishable_..."></div>
+</div>
+<div class="field-row">
+<div style="flex:1;min-width:170px"><label for="saasEmail">E-mail</label><input id="saasEmail" type="email" autocomplete="email"></div>
+<div style="flex:1;min-width:170px"><label for="saasPassword">Senha</label><input id="saasPassword" type="password" autocomplete="current-password"></div>
+</div>
+<div class="controls"><button id="saasLogin">Entrar</button><button id="saasSignup" class="secondary">Criar conta</button></div>
+<div class="field-row">
+<div style="flex:1"><label for="saasOrg">Espaço de trabalho</label><select id="saasOrg"></select></div>
+<div style="flex:1"><label for="saasOrgName">Nome do novo espaço</label><input id="saasOrgName" placeholder="Meu estúdio"></div>
+</div>
+<div class="controls"><button id="saasCreateOrg" class="secondary">Criar espaço</button><button id="saasRefresh" class="secondary">Atualizar painel</button></div>
+<div class="field-row">
+<div style="flex:1"><label for="saasChannel">Canal de publicação</label><select id="saasChannel"></select></div>
+</div>
+<div class="controls"><button id="saasConnect" class="secondary">Conectar canal via Google</button></div>
+<div class="field-row">
+<div><label for="saasBuyCount">Comprar créditos</label><input id="saasBuyCount" type="number" min="100" max="100000" step="100" value="100"></div>
+<div><button id="saasCheckout">Comprar por R$ 0,15/crédito</button></div>
+<div><label>Carteira</label><strong id="saasCredits">—</strong></div>
+</div>
+<fieldset>
+<label for="saasTitle">Título do Short</label><input id="saasTitle" maxlength="100" placeholder="Título que descreve o corte">
+<label for="saasDescription">Descrição</label><textarea id="saasDescription" rows="2" maxlength="5000" placeholder="Descrição e atribuições aplicáveis"></textarea>
+<div class="controls"><button id="saasUpload" class="secondary">Enviar somente MP4 final</button></div>
+<label><input type="checkbox" id="saasApprovalCheck">Confirmo que quero publicar este corte em modo PRIVADO no canal escolhido e que tenho os direitos de uso.</label>
+<div class="controls"><button id="saasApprove" disabled>Aprovar publicação privada — 1 crédito</button></div>
+</fieldset>
+<div class="notice" id="saasFeedback" role="status">Para usar o SaaS, configure a URL da API e os dados públicos do Supabase e entre na sua conta.</div>
+<div id="saasStatus" aria-live="polite"></div>
+</section>
 </main>
 <script type="module" src="./app.js"></script>
+<script type="module" src="./saas.js"></script>
 </body>
 </html>

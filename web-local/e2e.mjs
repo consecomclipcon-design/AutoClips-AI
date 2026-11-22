@@ -19,10 +19,10 @@ try {
     const v = document.getElementById("source");
     return Number.isFinite(v.duration) && v.duration > 2;
   }, null, { timeout: 15000 });
-  await page.locator("#start").fill("0.2");
-  await page.locator("#end").fill("2.2");
-  await page.locator("#rights").check();
-  await page.locator("#export").click();
+  await page.locator("#adCutStart").fill("0.2");
+  await page.locator("#adCutEnd").fill("2.2");
+  await page.locator("#adEditRights").check();
+  await page.locator("#adExport").click();
   await page.waitForFunction(() => {
     const text = document.getElementById("status")?.textContent || "";
     return text.includes("Corte exportado localmente") ||

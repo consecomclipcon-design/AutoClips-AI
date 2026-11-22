@@ -1,0 +1,54 @@
+name: Web-local media (no server processing)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'web-local/**'
+      - '.github/workflows/web-local-media.yml'
+  pull_request:
+    paths:
+      - 'web-local/**'
+      - '.github/workflows/web-local-media.yml'
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install headless Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Install FFmpeg for test fixture and stream inspection ONLY
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Generate synthetic audio-video fixture
+        run: |
+          ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i "testsrc2=size=640x360:rate=24" \
+            -f lavfi -i "sine=frequency=440:sample_rate=48000" \
+            -t 4 -c:v libx264 -preset ultrafast -pix_fmt yuv420p \
+            -c:a aac -b:a 96k /tmp/autoclips-fixture.mp4
+      - name: Export from isolated browser
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory web-local >/tmp/web-local.log 2>&1 &
+          sleep 2
+          node web-local/e2e.mjs
+          node web-local/direct-youtube.e2e.mjs
+      - name: Inspect browser-generated file (no cloud transcoding)
+        run: |
+          f=$(find /tmp -maxdepth 1 -type f \( -name 'autoclips-fixture-*.mp4' -o -name 'autoclips-fixture-*.webm' \) | head -n1)
+          test -n "$f"
+          codecs=$(ffprobe -v error -show_entries stream=codec_type -of csv=p=0 "$f")
+          echo "$codecs" | grep -q video
+          echo "$codecs" | grep -q audio
+          dimensions=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$f")
+          test "$dimensions" = "540x960"
+          ffprobe -v error -show_entries stream=codec_name,codec_type,width,height -of json "$f"
+      - name: Ensure media never goes to SaaS server
+        run: |
+          ! grep -RE "generate_presigned_url|boto3|upload_url|token_ciphertext|MediaFileUpload|S3_BUCKET" saas-api/main.py saas-api/core.py

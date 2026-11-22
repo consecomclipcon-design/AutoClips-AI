@@ -1,3 +1,7 @@
+> **SaaS multiusuário novo (branch em desenvolvimento):** a arquitetura ZERO MEDIA usa o computador do cliente para downloads autorizados, edição e upload direto YouTube. Nenhuma mídia passa por servidores AutoClips. Consulte saas-api/README.md e web-local/README.md. Este README abaixo documenta separadamente o pipeline privado LEGADO de 2026.
+
+---
+
 # AutoClips AI — ClipCon | Pipeline privado em produção
 
 **Verificação real em 19/10/2026:** importação autorizada de mídia NASA/JPL, transcrição Faster-Whisper, renderização com vídeo superior, imagem inferior e legendas no divisor, e envio **privado** confirmado ao canal ClipCon: https://www.youtube.com/watch?v=WZfZA5mmcGk (33 segundos).

@@ -1,0 +1,6 @@
+{
+  "apiUrl": "https://api.your-autoclips-domain.com",
+  "supabaseUrl": "https://YOUR-PROJECT.supabase.co",
+  "supabasePublishableKey": "sb_publishable_REPLACE",
+  "googleClientId": "123456789-xxxxxxxx.apps.googleusercontent.com"
+}

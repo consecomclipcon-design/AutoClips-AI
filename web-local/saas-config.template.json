@@ -1,0 +1,6 @@
+{
+  "apiUrl": "${API_URL}",
+  "supabaseUrl": "${SUPABASE_URL}",
+  "supabasePublishableKey": "${SUPABASE_PUBLISHABLE_KEY}",
+  "googleClientId": "${GOOGLE_CLIENT_ID}"
+}

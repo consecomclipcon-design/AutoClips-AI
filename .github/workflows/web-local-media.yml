@@ -43,3 +43,6 @@ jobs:
           ffprobe -v error -show_entries stream=codec_type -of csv=p=0 "$f" > /tmp/streams.txt
           grep -q video /tmp/streams.txt
           grep -q audio /tmp/streams.txt
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$f")" = "h264"
+          test "$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$f")" = "aac"
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$f")" = "540x960"

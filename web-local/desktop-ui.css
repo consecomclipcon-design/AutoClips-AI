@@ -1,7 +1,7 @@
 
 /* AutoClips Desktop visual adaptation — reference screenshots 22/11/2026.
    This stylesheet only skins the SaaS client; it never processes video on the server. */
-body > header, body > main, body > nav.mobile-tabs, body > #studioToast, body > #creditModal {display:none!important}
+body > header, body > main, body > #studioWrap, body > nav.mobile-tabs, body > #studioToast, body > #creditModal {display:none!important}
 html,body{margin:0!important;min-height:100%;background:#08080c!important;color:#f9f6ff!important;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif!important}
 #desktop-shell,#desktop-shell *{box-sizing:border-box}
 #desktop-shell{--d-bg:#0d0c12;--d-panel:#19171f;--d-panel-2:#201b2a;--d-line:#332b3e;--d-muted:#aea7c3;--d-purple:#a849f0;--d-pink:#f278bb;--d-green:#56dfab;color:#faf9ff;background:#09080d;min-height:100dvh}
@@ -154,3 +154,7 @@ html,body{margin:0!important;min-height:100%;background:#08080c!important;color:
 @media(max-width:1260px){.ad-content{padding-left:30px;padding-right:30px}.ad-dashboard{grid-template-columns:1fr}.ad-pay-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ad-storage-card{margin-top:170px}.ad-post-channels{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:840px){.ad-rail{width:57px}.ad-brand{width:36px;height:36px}.ad-railbtn{width:39px;height:39px}.ad-stage{margin-left:57px}.ad-content{padding:25px 20px 90px}.ad-heading{font-size:35px}.ad-title{font-size:33px}.ad-settings-grid{grid-template-columns:1fr}.ad-dashboard{display:block}.ad-dashboard>*{margin-bottom:14px}.ad-storage-card{margin-top:70px}.ad-post-channels{grid-template-columns:1fr 1fr}.ad-editor{grid-template-columns:1fr}}
 @media(max-width:580px){.ad-content{padding:17px 13px 70px}.ad-rail{width:48px;padding:12px 0}.ad-stage{margin-left:48px;border-radius:14px 0 0 14px}.ad-brand{width:32px;height:32px;margin-bottom:25px}.ad-railbtn{width:34px;height:38px}.ad-railbtn svg{width:17px}.ad-heading{font-size:29px}.ad-title{font-size:27px}.ad-card{padding:14px}.ad-metric{min-height:135px}.ad-grid-3{gap:5px}.ad-grid-3 .ad-metric b{font-size:16px}.ad-grid-3 .ad-metric p{font-size:9px}.ad-phone{width:205px;height:365px}.ad-approval-stage{gap:11px}.ad-phone-button{width:35px;height:38px}.ad-pay-grid{grid-template-columns:1fr}.ad-post-channels{grid-template-columns:1fr}.ad-settings-actions{grid-template-columns:1fr}.ad-dialog-actions{flex-direction:column}.ad-balance{display:block}.ad-timeline input{width:120px}}
+
+#adSourceMount video{display:block;min-height:100px}
+#adCompositionMount canvas{display:block;max-height:310px;width:100%;height:auto;aspect-ratio:9/16;object-fit:contain;border:1px solid #393042;border-radius:12px}
+.ad-railbtn[aria-current=page]{background:#352447;color:#d9abff}

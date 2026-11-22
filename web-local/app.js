@@ -206,6 +206,7 @@ el("folder").onclick = async () => {
   }
   try {
     const directory = await window.showDirectoryPicker({ mode: "read", id: "autoclips-originais" });
+    window.dispatchEvent(new CustomEvent("autoclips:directory-selected",{detail:{name:directory.name}}));
     let count = 0;
     for await (const handle of directory.values()) {
       if (handle.kind !== "file" || count >= 300) continue;

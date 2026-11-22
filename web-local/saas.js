@@ -197,7 +197,7 @@ function localExport() {
   const result = window.autoclipsLocalGetExport?.();
   if (!result?.blob || result.blob.size < 1024) throw Error("Gere um corte MP4 neste editor antes de enviar");
   if (result.blob.type !== "video/mp4" || !result.name.endsWith(".mp4"))
-    throw Error("Seu navegador exportou WebM. O uploader exige MP4 H.264/AAC; use navegador compatível.");
+    throw Error("Seu navegador exportou WebM. Esta versão sincroniza somente MP4 final; use navegador compatível.");
   if (result.blob.size > 256 * 1024 * 1024)
     throw Error("Arquivo acima de 256 MB: upload local grande ainda não homologado.");
   return result;

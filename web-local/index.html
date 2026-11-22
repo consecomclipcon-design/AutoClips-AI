@@ -201,6 +201,21 @@
           <label class="ad-checkbox"><input id="adEditRights" type="checkbox">Confirmo ter autorização para editar este vídeo e as imagens utilizadas.</label>
           <div class="ad-pipeline" style="justify-content:flex-start;flex-wrap:wrap"><button id="adExport" type="button" class="ad-btn primary">Gerar corte no computador</button><button id="adPause" type="button" class="ad-btn">Pausar</button><button id="adSave" type="button" class="ad-btn">Salvar arquivo</button></div>
           <div id="adExportFeedback" class="ad-muted" style="margin-top:12px">O corte não será enviado aos nossos servidores.</div>
+
+          <div class="ad-card" style="padding:15px;margin-top:15px;background:#15121d">
+            <h3 class="ad-sec-title" style="margin:0 0 6px">Legendas e transcrição local</h3>
+            <p class="ad-muted">O Whisper roda no seu navegador, sem enviar o áudio à Railway. O modelo será baixado diretamente no primeiro uso. Use Chrome/Edge atualizado e mantenha esta aba aberta.</p>
+            <div class="ad-pipeline" style="justify-content:flex-start;flex-wrap:wrap">
+              <button class="ad-btn primary" type="button" id="adTranscribe">Transcrever vídeo</button>
+              <label class="ad-btn" for="adCaptionFile" style="margin:0;cursor:pointer">Importar legenda SRT/VTT</label>
+              <input id="adCaptionFile" type="file" accept=".srt,.vtt,text/vtt,text/plain" hidden>
+            </div>
+            <div id="adCaptionStatus" class="ad-muted" role="status" aria-live="polite" style="margin:12px 0">Nenhuma legenda sincronizada.</div>
+            <div class="ad-pipeline" style="justify-content:flex-start">
+              <button id="adSuggestClips" type="button" class="ad-btn" disabled>Sugerir até 3 cortes a partir das falas</button>
+            </div>
+            <div id="adClipSuggestions" style="margin-top:11px" class="ad-list"></div>
+          </div>
         </div>
       </section>
 
@@ -259,7 +274,7 @@
             <div class="ad-settings-actions"><button class="ad-btn primary" id="adLogout" type="button">Sair da conta</button><button class="ad-btn" id="adFindChannels" type="button">Encontrar canais</button><button class="ad-btn" id="adCreateChannel" type="button">Criar espaço</button></div>
             <div class="ad-card"><h3>Canais e fontes</h3><div id="adSettingsChannels"><p class="ad-muted">Entre e conecte um canal para começar.</p></div></div>
             <div class="ad-card"><h3>Minha conta</h3><p class="ad-muted" id="adAccountMessage">Conecte sua conta para sincronizar canais, publicações e créditos.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="adLoginEmail" class="ad-input" type="email" placeholder="Seu e-mail"><input id="adLoginPass" class="ad-input" type="password" placeholder="Senha"></div><div class="ad-pipeline" style="justify-content:flex-start"><button class="ad-btn primary" id="adSignin" type="button">Entrar</button><button class="ad-btn" id="adSignup" type="button">Criar conta</button></div><div class="ad-muted" id="adAccountResponse"></div></div>
-            <div class="ad-card"><h3>Aprovar no Android</h3><p class="ad-muted">A vinculação por APK e QR code da versão desktop não está disponível neste navegador. A revisão web funciona sem instalação.</p><button class="ad-btn" type="button" id="adReviewMobile">Abrir painel móvel de metadados</button></div>
+            
             <details class="ad-card"><summary style="cursor:pointer;font-weight:800;font-size:12px">Configurações avançadas do SaaS</summary><p class="ad-muted">O site publicado recebe automaticamente as configurações públicas. Credenciais secretas ficam no servidor.</p><button class="ad-btn" id="adAdvanced" type="button">Ver configurações de integração</button></details>
           </div>
         </div>

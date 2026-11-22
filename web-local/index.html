@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark"><title>AutoClips Studio · Painel</title><link rel="stylesheet" href="./studio.css"></head>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark"><title>AutoClips Studio · Painel</title><link rel="stylesheet" href="./studio.css">
+<link rel="stylesheet" href="./desktop-ui.css"></head>
 <body>
 <header><div class="logo"><span class="logo-symbol">▶</span> AutoClips <span style="color:#bd90f9">Studio</span></div><div class="topright"><span class="pill green">● Edição local</span><span class="pill" id="topCredits">Créditos: —</span><button id="topAccount" type="button" class="btn soft">Minha conta</button></div></header>
 <div class="wrap" id="studioWrap">
@@ -119,5 +120,170 @@
 <nav class="mobile-tabs" aria-label="Menu móvel"><button type="button" class="active" data-view="studio">Feed</button><button type="button" class="" data-view="library">Arquivos</button><button type="button" class="" data-view="channels">Canais</button><button type="button" class="" data-view="history">Histórico</button><button type="button" class="" data-view="payments">Pagamentos</button></nav>
 <div id="studioToast" class="toast" role="status" aria-live="polite"></div>
 <div class="credit-modal" id="creditModal" hidden><div class="credit-dialog" role="dialog" aria-modal="true" aria-labelledby="creditModalTitle" aria-describedby="creditModalDesc"><div class="logo-symbol" style="display:inline-flex;font-size:22px">◈</div><h2 id="creditModalTitle">Seus créditos acabaram</h2><p id="creditModalDesc">Você precisa comprar novos créditos para publicar mais vídeos. Os cortes já produzidos permanecem no seu computador.</p><button type="button" id="creditModalBuy" class="btn primary">Ver planos e comprar créditos</button><button type="button" id="creditModalDismiss" class="btn soft">Agora não</button></div></div>
+
+<div id="desktop-shell">
+  <aside class="ad-rail" aria-label="Navegação do AutoClips">
+    <button type="button" id="adLogo" class="ad-brand" title="AutoClips Studio" aria-label="Visão geral">
+      <svg viewBox="0 0 24 24"><path d="M6 4.5 20 12 6 19.5Z"/></svg>
+    </button>
+    <nav class="ad-railnav" aria-label="Páginas">
+      <button class="ad-railbtn active" data-desktop-page="overview" title="Visão geral" aria-label="Visão geral"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 15V9m4 6V5m4 10v-4"/></svg></button>
+      <button class="ad-railbtn" data-desktop-page="create" title="Criar cortes" aria-label="Criar cortes"><svg viewBox="0 0 24 24"><path d="m12 2 2.3 7.7L22 12l-7.7 2.3L12 22l-2.3-7.7L2 12l7.7-2.3Z"/></svg></button>
+      <button class="ad-railbtn" data-desktop-page="approvals" title="Aprovações" aria-label="Aprovações"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="3"/><path d="m9 12 2 2 4-4"/></svg><span class="ad-count" id="adApprovalCount" hidden>0</span></button>
+      <button class="ad-railbtn" data-desktop-page="production" title="Fila de produção" aria-label="Fila de produção"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3Z"/></svg><span class="ad-count" id="adProductionCount" hidden>0</span></button>
+      <button class="ad-railbtn" data-desktop-page="posting" title="Fila de postagem" aria-label="Fila de postagem"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 11h15M4 16h11M16 17l2 2 3-4"/></svg><span class="ad-count" id="adPostingCount" hidden>0</span></button>
+      <button class="ad-railbtn" data-desktop-page="storage" title="Armazenamento" aria-label="Armazenamento"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 10h10"/></svg></button>
+      <button class="ad-railbtn" data-desktop-page="billing" title="Planos e pagamentos" aria-label="Planos e pagamentos"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h5"/></svg></button>
+      <button class="ad-railbtn" data-desktop-page="settings" title="Configurações" aria-label="Configurações"><svg viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7Z"/></svg></button>
+    </nav>
+    <button class="ad-railbtn ad-rail-bottom" type="button" id="adRefresh" title="Atualizar dados" aria-label="Atualizar dados"><svg viewBox="0 0 24 24"><path d="M20 5v5h-5M20 10a8 8 0 1 0 1 5"/></svg></button>
+  </aside>
+  <div class="ad-stage">
+    <div class="ad-content">
+      <section id="ad-overview" class="ad-page" aria-labelledby="adOverviewTitle">
+        <div class="ad-topline">
+          <h1 class="ad-heading" id="adOverviewTitle" style="margin:0">Visão geral</h1>
+          <div class="ad-top-actions"><button class="ad-search" id="adSearch" type="button" aria-label="Pesquisar">⌕</button><button type="button" class="ad-avatar" id="adAvatar"><span id="adAvatarInitial">A</span><span id="adAvatarName">Minha conta</span>⌄</button></div>
+        </div>
+        <div class="ad-dashboard" style="margin-top:21px">
+          <div>
+            <h2 class="ad-sec-title">Desempenho</h2>
+            <div class="ad-hero-stat"><div class="ad-stat-big" id="adViews">—</div><div class="ad-stat-label">Views acumuladas dos vídeos publicados</div>
+              <div style="border-top:2px dotted #2c4969;margin-top:20px;padding-top:11px;font-size:11px;color:#a0adc5" id="adAnalyticsNote">Conecte uma conta com YouTube Analytics para carregar métricas reais.</div>
+              <div class="ad-dash-filter"><button class="ad-chip" data-period="today">Hoje</button><button class="ad-chip active" data-period="7d">7 dias</button><button class="ad-chip" data-period="month">Este mês</button><button class="ad-chip" data-period="custom">Personalizado</button></div>
+            </div>
+          </div>
+          <div>
+            <h2 class="ad-sec-title">Seus canais</h2>
+            <div class="ad-grid-3">
+              <div class="ad-metric"><b id="adPublishedTotal">—</b><p>Publicações</p><button class="ad-mini-icon" data-desktop-page="posting" type="button">▤</button></div>
+              <div class="ad-metric green"><b id="adChannelTotal">—</b><p>Canais conectados</p><button class="ad-mini-icon" data-desktop-page="settings" type="button">+</button></div>
+              <div class="ad-metric gold"><div class="ad-thumbnail"></div><div class="ad-muted" style="margin:7px 0 2px">Mais visualizado</div><b id="adMostViewed">—</b><p>Sem dados de Analytics</p></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="ad-sec-title">Top 5 por engajamento</h2><small style="color:#8e82a5" id="adRangeLabel">7 dias</small></div>
+            <table class="ad-table"><thead><tr><th>Vídeo</th><th>Views</th><th>Engajamento</th></tr></thead><tbody id="adTopRows"><tr><td colspan="3" style="text-align:center;color:#a69db7">Os dados de engajamento aparecerão ao conectar o YouTube Analytics.</td></tr></tbody></table>
+            <p class="ad-muted">Visualizações e engajamento são carregados somente de métricas oficiais autorizadas. Nenhum valor demonstrativo é contabilizado como real.</p>
+          </div>
+          <div class="ad-audience"><h2 class="ad-sec-title">Quem assiste aos seus cortes</h2><div class="ad-small-empty" id="adAudienceEmpty">As estatísticas de público aparecerão quando estiverem disponíveis no YouTube Analytics.</div></div>
+        </div>
+      </section>
+
+      <section id="ad-create" class="ad-page" hidden aria-labelledby="adCreateTitle">
+        <div class="ad-topline"><div class="ad-breadcrumb">SEU ESTÚDIO <b>/ Criar cortes</b></div><span class="ad-online">AutoClips local</span></div>
+        <h1 id="adCreateTitle" class="ad-heading" style="margin:10px 0 10px">Crie cortes <span class="accent">de um vídeo.</span></h1>
+        <p class="ad-subtitle">Selecione um original autorizado. A edição e a exportação acontecem no seu computador, pelo navegador.</p>
+        <div class="ad-card">
+          <div class="ad-step"><span class="ad-step-no">01</span><div><b>Qual vídeo vamos transformar?</b><p>Escolha o canal de destino e informe a origem autorizada.</p></div></div>
+          <div class="ad-destination"><span id="adDestinationName">◉ Selecione um canal em Configurações</span></div>
+          <div class="ad-link-label">▾ Importar por link autorizado ou selecionar um arquivo</div>
+          <label class="ad-field" for="adVideoLink">Link do vídeo</label>
+          <input class="ad-input" id="adVideoLink" type="url" placeholder="https://youtube.com/watch?v=... ou URL direta do arquivo">
+          <label class="ad-checkbox"><input id="adLinkRights" type="checkbox">Tenho autorização para baixar e editar este conteúdo.</label>
+          <button class="ad-btn primary ad-big-cta" id="adGenerate" type="button">✦ &nbsp; Gerar meus cortes &nbsp; →</button>
+          <div class="ad-features">✧ &nbsp; Gancho forte &nbsp; · &nbsp; Formato 9:16 &nbsp; · &nbsp; Vídeo real &nbsp; · &nbsp; Revisão antes de publicar</div>
+          <div class="ad-pipeline"><button class="ad-btn" id="adChooseFile" type="button">Escolher vídeo do computador</button><button class="ad-btn" id="adChooseFolder" type="button">Escolher pasta autorizada</button></div>
+        </div>
+        <div class="ad-card" style="margin-top:13px;padding:17px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b style="font-size:13px" id="adCreateStatusTitle">Pronto para começar</b><p class="ad-muted" id="adCreateStatus">Selecione um original para iniciar.</p></div><button class="ad-btn pale" id="adResume" type="button">Retomar edição</button></div>
+          <div class="ad-progressbar"><div id="adCreationProgress" style="width:0%"></div></div>
+        </div>
+        <div id="adEditor" class="ad-card" style="margin-top:16px" hidden>
+          <div style="display:flex;align-items:center;justify-content:space-between"><h2 class="ad-sec-title">Editor de corte local</h2><span class="ad-online">No navegador</span></div>
+          <div class="ad-editor"><div id="adSourceMount"></div><div id="adCompositionMount"></div></div>
+          <div class="ad-editor-fields" style="margin-top:14px">
+            <label>Início (s)<input id="adCutStart" type="number" step=".1" min="0" value="0"></label>
+            <label>Fim (s)<input id="adCutEnd" type="number" step=".1" min="0" value="30"></label>
+            <label>Gancho branco<input id="adHookWhite" value="UM MOMENTO"></label>
+            <label>Destaque rosa<input id="adHookAccent" value="INCRÍVEL"></label>
+          </div>
+          <label class="ad-checkbox"><input id="adEditRights" type="checkbox">Confirmo ter autorização para editar este vídeo e as imagens utilizadas.</label>
+          <div class="ad-pipeline" style="justify-content:flex-start;flex-wrap:wrap"><button id="adExport" type="button" class="ad-btn primary">Gerar corte no computador</button><button id="adPause" type="button" class="ad-btn">Pausar</button><button id="adSave" type="button" class="ad-btn">Salvar arquivo</button></div>
+          <div id="adExportFeedback" class="ad-muted" style="margin-top:12px">O corte não será enviado aos nossos servidores.</div>
+        </div>
+      </section>
+
+      <section id="ad-approvals" class="ad-page" hidden aria-labelledby="adApprovalsTitle">
+        <div class="ad-topline"><div class="ad-breadcrumb">SEU ESTÚDIO <b>/ Aprovações</b></div><span class="ad-online">AutoClips local</span></div>
+        <div class="ad-topline"><h1 class="ad-heading" id="adApprovalsTitle">Aprovações</h1><div class="ad-top-actions"><button class="ad-chip" id="adApproveAll" type="button">Aprovar todos</button><span class="ad-chip active" id="adApprovalPill">0 vídeos</span></div></div>
+        <div class="ad-approval-stage">
+          <div class="ad-phone"><video id="adClipVideo" controls playsinline preload="metadata" hidden></video>
+            <div class="ad-phone-empty" id="adClipEmpty"><div class="badgeicon">▷</div><b>Seus cortes aparecem aqui</b><p>Gere seu primeiro vídeo na aba Criar cortes.</p></div>
+          </div>
+          <div class="ad-phone-actions">
+            <button class="ad-phone-button" id="adSpeed" title="Velocidade" type="button" style="font-size:12px">1×</button>
+            <button class="ad-phone-button" id="adClipPrev" title="Corte anterior" type="button">⌃</button>
+            <button class="ad-phone-button" id="adClipNext" title="Próximo corte" type="button">⌄</button>
+            <div style="width:30px;height:1px;background:#36313e;margin:5px 0"></div>
+            <button class="ad-phone-button green" id="adApprove" type="button" title="Aprovar">♡</button><span class="ad-action-label">Aprovar</span>
+            <button class="ad-phone-button amber" id="adComment" type="button" title="Comentar">↶</button><span class="ad-action-label">Comentar</span>
+            <button class="ad-phone-button red" id="adReject" type="button" title="Rejeitar">×</button><span class="ad-action-label">Rejeitar</span>
+          </div>
+        </div>
+        <div class="ad-timeline"><button id="adBack5" type="button">−5 s</button><button id="adBack1" type="button">−1 s</button><input id="adClipSeek" type="range" min="0" max="100" value="0" aria-label="Posição da prévia"><button id="adFwd1" type="button">+1 s</button><button id="adFwd5" type="button">+5 s</button></div>
+        <div class="ad-muted" id="adApprovalNotice" style="text-align:center;margin-top:12px">Os cortes prontos são reproduzidos localmente para aprovação.</div>
+      </section>
+
+      <section id="ad-production" class="ad-page" hidden aria-labelledby="adProductionTitle">
+        <div class="ad-topline"><div class="ad-breadcrumb">SEU ESTÚDIO <b>/ Fila de produção</b></div><span class="ad-online">AutoClips local</span></div>
+        <h1 id="adProductionTitle" class="ad-heading" style="margin-top:10px">Fila de <span class="accent">produção.</span></h1>
+        <p class="ad-subtitle" id="adProductionCaption">Nenhum vídeo em produção</p>
+        <div id="adProductionList" class="ad-list"><div class="ad-card ad-muted">Os arquivos selecionados e os cortes produzidos aparecerão aqui.</div></div>
+      </section>
+
+      <section id="ad-posting" class="ad-page" hidden aria-labelledby="adPostingTitle">
+        <div class="ad-topline"><div class="ad-breadcrumb">SEU ESTÚDIO <b>/ Fila de postagem</b></div><span class="ad-online">AutoClips local</span></div>
+        <div class="ad-topline"><h1 class="ad-heading" id="adPostingTitle" style="margin:9px 0">O que vai <span class="accent">ao ar.</span></h1><button class="ad-chip active" id="adPostAll" type="button">Todos</button></div>
+        <p class="ad-subtitle" id="adPostingCaption">Entre na conta e conecte os canais para visualizar a fila.</p>
+        <div id="adChannelTiles" class="ad-post-channels"></div>
+        <div class="ad-list" id="adPostingList" style="margin-top:26px"></div>
+      </section>
+
+      <section id="ad-storage" class="ad-page" hidden aria-labelledby="adStorageTitle">
+        <div class="ad-topline"><div class="ad-breadcrumb">SEU ESTÚDIO <b>/ Armazenamento</b></div><span class="ad-online">AutoClips local</span></div>
+        <div class="ad-card ad-storage-card">
+          <div class="ad-storage-icon">▣</div>
+          <div class="ad-storage-main"><div class="ad-kicker">Pasta atual</div><h3 id="adFolderName">Nenhuma pasta autorizada</h3><div class="ad-progressbar"><div id="adQuotaBar" style="width:0%"></div></div><div class="ad-storage-meta"><span id="adQuotaAvailable">O acesso a arquivos depende de sua autorização</span><span id="adQuotaTotal">Armazenamento local</span></div></div>
+          <button id="adChangeFolder" class="ad-btn" type="button">▣ Trocar pasta</button>
+        </div>
+        <p class="ad-muted" style="text-align:center;margin-top:16px">O navegador não tem acesso automático ao disco E: nem a outras pastas. Selecione a pasta para conceder permissão. O indicador considera apenas o armazenamento permitido ao site.</p>
+      </section>
+
+      <section id="ad-settings" class="ad-page" hidden aria-labelledby="adSettingsTitle">
+        <div class="ad-topline"><div class="ad-breadcrumb">SEU ESTÚDIO <b>/ Configurações</b></div><span class="ad-online">AutoClips local</span></div>
+        <div class="ad-settings-grid">
+          <div>
+            <div class="ad-muted" id="adConnectedLabel">Canal conectado: nenhum</div>
+            <div class="ad-settings-actions"><button class="ad-btn primary" id="adLogout" type="button">Sair da conta</button><button class="ad-btn" id="adFindChannels" type="button">Encontrar canais</button><button class="ad-btn" id="adCreateChannel" type="button">Criar espaço</button></div>
+            <div class="ad-card"><h3>Canais e fontes</h3><div id="adSettingsChannels"><p class="ad-muted">Entre e conecte um canal para começar.</p></div></div>
+            <div class="ad-card"><h3>Minha conta</h3><p class="ad-muted" id="adAccountMessage">Conecte sua conta para sincronizar canais, publicações e créditos.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="adLoginEmail" class="ad-input" type="email" placeholder="Seu e-mail"><input id="adLoginPass" class="ad-input" type="password" placeholder="Senha"></div><div class="ad-pipeline" style="justify-content:flex-start"><button class="ad-btn primary" id="adSignin" type="button">Entrar</button><button class="ad-btn" id="adSignup" type="button">Criar conta</button></div><div class="ad-muted" id="adAccountResponse"></div></div>
+            <div class="ad-card"><h3>Aprovar no Android</h3><p class="ad-muted">A vinculação por APK e QR code da versão desktop não está disponível neste navegador. A revisão web funciona sem instalação.</p><button class="ad-btn" type="button" id="adReviewMobile">Abrir painel móvel de metadados</button></div>
+            <details class="ad-card"><summary style="cursor:pointer;font-weight:800;font-size:12px">Configurações avançadas do SaaS</summary><p class="ad-muted">O site publicado recebe automaticamente as configurações públicas. Credenciais secretas ficam no servidor.</p><button class="ad-btn" id="adAdvanced" type="button">Ver configurações de integração</button></details>
+          </div>
+        </div>
+      </section>
+
+      <section id="ad-billing" class="ad-page" hidden aria-labelledby="adBillingTitle">
+        <div class="ad-topline"><div class="ad-breadcrumb">SEU ESTÚDIO <b>/ Planos e pagamentos</b></div><span class="ad-online">AutoClips local</span></div>
+        <h1 class="ad-heading" id="adBillingTitle" style="margin:10px 0">Planos e <span class="accent">pagamentos.</span></h1>
+        <p class="ad-subtitle">Créditos pré-pagos. Cada publicação confirmada consome 1 crédito por canal.</p>
+        <div class="ad-balance"><div><div class="ad-kicker">Seu saldo disponível</div><strong><span id="adCreditBalance">—</span> <small style="font-size:14px;color:#a99db8">créditos</small></strong><div class="ad-muted" id="adReservedBalance">Entre para visualizar seu saldo real.</div></div><button class="ad-btn" type="button" data-desktop-page="settings">Minha conta</button></div>
+        <div class="ad-pay-grid">
+          <div class="ad-plan"><div class="ad-kicker">Inicial</div><h3>100 créditos</h3><div class="price">R$ 15,00</div><p>100 vídeos publicados. Sem mensalidade obrigatória.</p><button class="ad-btn primary" data-ad-buy="100" type="button">Escolher plano</button></div>
+          <div class="ad-plan featured"><div class="ad-kicker">Criador</div><h3>250 créditos</h3><div class="price">R$ 37,50</div><p>250 publicações nos seus canais conectados.</p><button class="ad-btn primary" data-ad-buy="250" type="button">Escolher plano</button></div>
+          <div class="ad-plan"><div class="ad-kicker">Profissional</div><h3>500 créditos</h3><div class="price">R$ 75,00</div><p>500 publicações com controle de consumo.</p><button class="ad-btn primary" data-ad-buy="500" type="button">Escolher plano</button></div>
+          <div class="ad-plan"><div class="ad-kicker">Escala</div><h3>1.000 créditos</h3><div class="price">R$ 150,00</div><p>Volume alto. Um crédito por publicação concluída.</p><button class="ad-btn primary" data-ad-buy="1000" type="button">Escolher plano</button></div>
+        </div>
+        <div class="ad-card" style="margin-top:20px"><h3 class="ad-sec-title">Compra personalizada</h3><p class="ad-muted">R$ 0,15 por crédito, mínimo de 100.</p><div style="display:flex;gap:9px;align-items:center"><input id="adCustomCredits" class="ad-input" type="number" min="100" step="50" value="100" style="max-width:180px"><span id="adCustomPrice" style="color:#d9b3ef;font-weight:850">R$ 15,00</span><button class="ad-btn primary" id="adBuyCustom" type="button">Pagar com segurança</button></div><p class="ad-muted">Os créditos são liberados apenas após confirmação do pagamento. Compras ainda não estão habilitadas no modo de prévia.</p></div>
+      </section>
+    </div>
+  </div>
+  <div id="adToast" class="ad-toast" hidden role="status"></div>
+  <div class="ad-modal" id="adCreditPopup" hidden><div class="ad-dialog" role="dialog" aria-modal="true" aria-labelledby="adCreditPopupTitle"><div class="ad-step-no" style="display:inline-block">◈</div><h2 id="adCreditPopupTitle">Seus créditos acabaram</h2><p>Você ficou sem créditos para publicar novos vídeos. Seus originais e cortes continuam no seu computador.</p><div class="ad-dialog-actions"><button type="button" class="ad-btn" id="adCreditClose">Agora não</button><button type="button" class="ad-btn primary" id="adCreditBuy">Ver planos e comprar créditos</button></div></div></div>
+  <div class="ad-modal" id="adApprovalDialog" hidden><div class="ad-dialog" role="dialog" aria-modal="true" aria-labelledby="adApprovalTitle"><h2 id="adApprovalTitle">Aprovar corte para publicação</h2><p>O vídeo aprovado será preparado para envio privado ao canal selecionado. Nenhum arquivo passa pelo servidor AutoClips.</p><label class="ad-checkbox"><input type="checkbox" id="adRightsApproved">Confirmei os direitos do conteúdo e autorizo o envio privado ao YouTube.</label><label class="ad-field" for="adPublishTitle">Título do vídeo</label><input class="ad-input" id="adPublishTitle" maxlength="100" placeholder="Título do Short"><div class="ad-dialog-actions"><button type="button" class="ad-btn" id="adApprovalCancel">Cancelar</button><button type="button" class="ad-btn primary" id="adApprovalConfirm">Preparar publicação</button></div><p class="ad-muted" id="adApprovalResult"></p></div></div>
+</div>
+
 <script src="https://accounts.google.com/gsi/client" async defer></script><script type="module" src="./app.js"></script><script type="module" src="./saas.js"></script><script type="module" src="./studio-ui.js"></script>
+<script type="module" src="./desktop-ui.js"></script>
 </body></html>

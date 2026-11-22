@@ -164,6 +164,15 @@ try {
   assert.equal(calls.captured, 1);
   assert.ok(calls.youtubeBinaryBytes > 1024);
   assert.equal(calls.saasBinaryBytes, 0);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("autoclips:wallet", {
+    detail: { wallet: { available: 0, reserved: 0, total_purchased: 100 }, jobs: [] }
+  })));
+  await page.locator("#creditModal").waitFor({ state: "visible" });
+  assert.match(await page.locator("#creditModalTitle").innerText(), /créditos acabaram/i);
+  await page.locator("#creditModalBuy").click();
+  assert.equal(await page.locator("#view-payments").isVisible(), true);
+  assert.equal(await page.locator(".plan-card").count(), 4);
+  assert.equal(await page.locator("#paymentsCredits").innerText(), "0");
   assert.deepEqual(errors, []);
   console.log("ZERO MEDIA PROVED (MOCK): bytes to Google:", calls.youtubeBinaryBytes,
     "bytes to AutoClips API:", calls.saasBinaryBytes);

@@ -42,6 +42,7 @@ jobs:
         run: |
           python -m py_compile saas-api/core.py saas-api/main.py saas-api/worker.py
           node --check web-local/saas.js
+          node --check web-local/review.js
       - name: Install pinned dependencies
         run: python -m pip install -r saas-api/requirements-dev.txt
       - name: Create private schema on temporary Postgres

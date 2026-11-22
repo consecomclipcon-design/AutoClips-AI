@@ -6,7 +6,7 @@ const ui = {
   email: e("saasEmail"), password: e("saasPassword"), feedback: e("saasFeedback"),
   org: e("saasOrg"), orgName: e("saasOrgName"), channel: e("saasChannel"),
   status: e("saasStatus"), credits: e("saasCredits"), count: e("saasBuyCount"),
-  title: e("saasTitle"), description: e("saasDescription"), start: e("saasStart"),
+  title: e("saasTitle"), description: e("saasDescription"), sourceId: e("saasSourceId"), basis: e("saasRightsBasis"), sourceList: e("saasSourceList"), discovery: e("saasDiscoverResults"),
   upload: e("saasUpload"), approve: e("saasApprove")
 };
 let token = "", userId = "", lastJobId = null, configs = null;
@@ -69,6 +69,13 @@ async function refreshWorkspace() {
     opt.value = channel.id;
     opt.textContent = channel.title + " · " + channel.youtube_channel_id;
     ui.channel.append(opt);
+  }
+  const sources = await request("/v1/sources?org_id=" + org);
+  ui.sourceList.replaceChildren();
+  for (const source of sources) {
+    const opt = document.createElement("option");
+    opt.value = source.id; opt.textContent = source.youtube_source_id;
+    ui.sourceList.append(opt);
   }
   ui.status.replaceChildren();
   if (!jobs.length) {
@@ -139,6 +146,41 @@ e("saasRefresh").onclick = async () => {
 };
 ui.org.onchange = async () => {
   try { await refreshWorkspace(); } catch (error) { feedback(error.message); }
+};
+e("saasRegisterSource").onclick = async () => {
+  try {
+    const channelId = ui.sourceId.value.trim();
+    if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId)) throw Error("Informe um ID de canal UC... válido.");
+    if (ui.basis.value.trim().length < 3) throw Error("Descreva a base de autorização de uso.");
+    await request("/v1/sources", {
+      method: "POST",
+      body: JSON.stringify({
+        org_id: orgId(), youtube_channel_id: channelId,
+        authorization_basis: ui.basis.value.trim()
+      })
+    });
+    await refreshWorkspace();
+    feedback("Origem cadastrada. Somente os IDs e metadados serão descobertos.");
+  } catch (error) { feedback(error.message); }
+};
+e("saasDiscover").onclick = async () => {
+  try {
+    if (!ui.sourceList.value) throw Error("Cadastre uma origem.");
+    if (!ui.channel.value) throw Error("Conecte um canal Google para consultar metadados.");
+    const qs = new URLSearchParams({ org_id: orgId(), connected_channel_id: ui.channel.value });
+    const result = await request("/v1/sources/" + ui.sourceList.value + "/discover?" + qs.toString(), {
+      method: "POST"
+    });
+    const rows = await request("/v1/sources/" + ui.sourceList.value +
+      "/videos?org_id=" + encodeURIComponent(orgId()));
+    ui.discovery.replaceChildren();
+    for (const video of rows.slice(0, 15)) {
+      const div = document.createElement("div");
+      div.textContent = video.title + " · " + video.youtube_video_id + " · aguardando original autorizado";
+      ui.discovery.append(div);
+    }
+    feedback("Encontrados " + result.discovered + " IDs. Nenhum vídeo original foi baixado.");
+  } catch (error) { feedback("Descoberta: " + error.message); }
 };
 e("saasCheckout").onclick = async () => {
   try {

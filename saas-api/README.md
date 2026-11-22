@@ -1,56 +1,57 @@
-# AutoClips SaaS — backend e editor (staging)
+# AutoClips SaaS — ZERO MEDIA (browser-first)
 
-**Estado:** o código está na branch feat/browser-local-poc-20261122. Ainda NÃO foi implantado ou habilitado para vendas e publicações públicas.
+**Decisão vinculante:** arquivos originais, áudio, fotos e cortes finais NUNCA são baixados no servidor AutoClips, gravados em bucket ou no banco de dados. Eles ficam no dispositivo do cliente. Ao publicar, o navegador envia diretamente ao Google YouTube. A API recebe somente JSON com contas, canais, organização, créditos, metadados e IDs de vídeos.
 
-O arquivo de origem fica no computador do cliente. O editor web-local/ produz o MP4 final; somente esse MP4 pode ser enviado para bucket S3 privado, sob autorização explícita. A API registra organizações, canais OAuth, créditos, jobs e revisões. O worker confirma o canal e publica no YouTube apenas em modo privado.
+## Fluxo do produto
+
+1. Cliente acessa o site HTTPS, cria conta no Supabase Auth e organiza seus canais.
+2. Escolhe arquivo/pasta local ou URL HTTPS direta de um vídeo autorizado. O navegador baixa em streaming para a pasta escolhida pelo próprio cliente quando a origem permite CORS; caso contrário, orienta download manual. Nenhuma mídia passa pelo backend.
+3. O navegador compõe, corta, grava e revisa na aba aberta. Com a aba fechada, a edição para.
+4. Google Identity Services (GIS) obtém access token curto na memória do navegador, sob consentimento do usuário. Não há refresh token Google armazenado no AutoClips.
+5. Backend valida via YouTube API que a autorização temporária corresponde ao canal escolhido. Registra ID/nome do canal, não token.
+6. Ao aprovar um corte, a API recebe SOMENTE JSON (hash SHA-256, tamanho, título, canal, chave de deduplicação). Reserva 1 crédito.
+7. Ao clicar Enviar ao YouTube, o navegador verifica canal e inicia sessão oficial de upload retomável. O MP4/WebM final flui do navegador diretamente para www.googleapis.com, NÃO para a API AutoClips.
+8. Browser recebe video ID. Backend usa apenas o token transitório da requisição para verificar canal e privacidade privada no YouTube. Quando confirmado, captura 1 crédito.
+9. Status de upload ambíguo nunca inicia outra publicação automática. O job aguarda reconciliação, evitando cobrança e publicação duplicadas.
 
 ## Componentes
 
-| Caminho | Função |
-|---|---|
-| schema.sql | Schema PostgreSQL privado e isolado por organização |
-| core.py | Auth Supabase, carteira de créditos e operações idempotentes |
-| main.py | API, OAuth, bucket privado, Stripe, fontes, revisão e fila |
-| worker.py | Upload privado retomável com verificação de canal e checksum |
-| Dockerfile e Dockerfile.worker | Serviços separados |
-| tests/test_ledger.py | Testes do banco e créditos |
-| ../web-local/index.html | Editor no navegador e integração opcional |
-| ../web-local/review.html | Revisão móvel com links privados temporários |
+- saas-api/schema.sql: schema privado autoclips_saas, sem campos para vídeo, bucket, objetos S3, caminhos de originais ou tokens persistentes.
+- saas-api/core.py: sessão Supabase, autorização por organização e carteira transacional de créditos.
+- saas-api/main.py: API só de metadados, OAuth transitório, Stripe checkout/webhook e verificação da publicação.
+- saas-api/Dockerfile: API sem FFmpeg, sem uploader de vídeo nem cliente S3.
+- web-local/: editor de vídeo, downloader autorizado local, ligação GIS e upload direto para YouTube.
+- web-local/review.html: painel móvel de STATUS e créditos apenas; NÃO há prévia de mídia no servidor.
+- web-local/Dockerfile: Nginx estático na porta 8080, CSP, política HTTPS e configuração pública via environment variables.
 
-## Configuração de staging
+## Preparar produção
 
-1. Obtenha uma cópia da branch de desenvolvimento e prepare um PostgreSQL de TESTE com roles Supabase. Não aplique o schema.sql em produção sem backup e revisão da migração.
-2. Copie saas-api/.env.example para seu ambiente privado e preencha as variáveis. Para TOKEN_FERNET_KEY, execute o gerador Fernet da biblioteca cryptography. Nunca coloque chaves SECRET, service_role, Stripe ou OAuth em web-local, repositório ou logs.
-3. Aplique saas-api/schema.sql ao banco de staging. O esquema autoclips_saas é privado; a API valida usuários com o Supabase Auth e verifica a participação deles em cada organização.
-4. Instale Python 3.12, FFmpeg/FFprobe e requirements.txt. Inicie a API com uvicorn main:app --host 127.0.0.1 --port 8090, a partir de saas-api/. Rode worker.py em um processo separado.
-5. Configure bucket S3 privado com URL endpoint, região, bucket e credenciais somente no backend. O bucket deve aceitar upload assinado com checksum SHA256. O CORS do bucket precisa permitir o domínio do editor e métodos PUT/GET, incluindo os cabeçalhos Content-Type e x-amz-checksum-sha256.
-6. Google Cloud: configure um cliente OAuth de aplicativo Web, ative YouTube Data API v3, escopos youtube.readonly e youtube.upload, e adicione a URL exata de callback GOOGLE_REDIRECT_URI. Não publique antes de homologar em um canal próprio de teste e atender verificação/auditoria do Google quando aplicável.
-7. Stripe: configure STRIPE_SECRET_KEY e um endpoint com Stripe-Signature em /v1/billing/stripe-webhook, ouvindo checkout.session.completed e checkout.session.async_payment_succeeded. O preço de tabela do MVP é R$ 0,15 por crédito, com mínimo de 100 créditos.
-8. No Railway, crie API e worker como serviços SEPARADOS de staging, build context na raiz e Dockerfiles em saas-api/Dockerfile e saas-api/Dockerfile.worker. Não conecte a produção enquanto os testes externos não passarem.
-9. Copie web-local/saas-config.example.json para web-local/saas-config.json no ambiente do editor com SOMENTE a URL API, URL Supabase e a chave PUBLICÁVEL. Sirva web-local em localhost usando o servidor Python definido no prompt.
-10. A revisão pelo celular fica no mesmo domínio em /review.html. Ela oferece somente MP4 final com links S3 de expiração curta, não o vídeo original longo.
+1. Revisar a branch/PR em ambiente de teste. Criar banco PostgreSQL dedicado. Não aplicar o schema.sql sobre qualquer schema autoclips_saas existente sem conferir estrutura e fazer uma migração segura. Este SQL substitui o protótipo anterior, NÃO é migração incremental.
+2. Configurar Supabase Auth público, confirmação de e-mail, políticas de senha, rate limiting e proteção contra abuso. O backend confere token do usuário diretamente no endpoint do Supabase Auth e verifica vínculo na organização.
+3. Configurar Google OAuth Web Client ID com Authorized JavaScript Origins do site HTTPS, tela de consentimento e YouTube Data API v3 ativada. Testar contas normais e Brand Accounts, youtube.readonly e youtube.upload. O ID OAuth do frontend é público; nunca colocar Client Secret no navegador. Verificação/auditoria Google pode ser necessária.
+4. Servir saas-api/Dockerfile na Railway com DATABASE_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_ORIGINS, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, BILLING_SUCCESS_URL e BILLING_CANCEL_URL, todos em variáveis protegidas.
+5. Servir web-local/Dockerfile em serviço separado HTTPS. Variáveis públicas: API_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e GOOGLE_CLIENT_ID. Nginx gera arquivo saas-config.json SEM segredos.
+6. Registrar APP_ORIGINS exatamente igual à origem HTTPS do editor. Stripe webhook deve apontar para /v1/billing/stripe-webhook com checkout.session.completed e checkout.session.async_payment_succeeded, inicialmente modo TESTE.
+7. Fazer piloto usando vídeo próprio, canal próprio, créditos de teste e postagem PRIVADA. No DevTools Network, comprovar que a mídia vai somente ao endpoint do Google. Confirmar logs e banco sem vídeos.
+8. Testar isolamento de duas contas, concorrência, token expirado, conexão/revogação de canal, upload com erro de rede, reconciliação manual, limites e quota YouTube, banco indisponível e pagamentos repetidos.
+9. Somente após testes reais e auditoria de LGPD/políticas Google/YouTube habilitar pagamentos reais e liberar clientes.
 
-## Regras de créditos, segurança e idempotência
+## Crédito e privacidade
 
-- Checkout só credita após confirmação do Stripe e webhook verificado. Eventos duplicados da mesma sessão não duplicam saldo.
-- Aprovar um job pronto reserva 1 crédito em transação com bloqueio da carteira.
-- Ao confirmar ID do vídeo no YouTube e validar o canal de destino e privacidade, o crédito é capturado e a publicação marcada como concluída de forma atômica.
-- Uma publicação por canal custa 1 crédito. Enviar o mesmo vídeo a dois canais equivale a duas publicações.
-- Cancelar um item ainda na fila devolve o crédito. Resultado incerto depois do início do upload entra em needs_reconciliation e não é repetido automaticamente, para evitar duplicação.
-- O operador pode reconciliar um upload incerto pelo comando Python do worker, informando job UUID e YouTube video ID. O serviço verifica canal e privacidade antes de registrar o sucesso.
-- OAuth é autenticado na página Google e o refresh token fica cifrado no backend.
-- JWT do usuário é validado pelo próprio Supabase Auth. Org ID sozinho nunca concede acesso.
-- Descoberta de origem só guarda ID e metadados; não baixa conteúdo do YouTube. O cliente deve fornecer o arquivo original autorizado.
-- A publicação automática pública permanece desabilitada nesta fase. O upload começa obrigatoriamente como privado.
-- O navegador precisa manter a aba aberta para processar. O serviço SaaS pode postar após receber o MP4 e a aprovação.
+- 1 crédito custa R$ 0,15; mínimo de 100 créditos por R$ 15. Um crédito é uma publicação confirmada em UM canal, não uma geração de vídeo.
+- Saldo reservado na aprovação, capturado somente após verificação do ID/canal e status privado via API YouTube. Cancelamento antes de iniciar upload devolve crédito. Se o upload começou e não há resultado confiável, mantém crédito reservado e exige reconciliação.
+- Stripe webhook assinado e ledger transacional impedem duplicidade por evento recebido mais de uma vez.
+- API rejeita arquivos com tipo de mídia (HTTP 415) e corpos JSON grandes (HTTP 413); Nginx limita requisições a 32 KB. Nenhum endpoint para upload/download de conteúdo.
+- Google token breve fica na memória do navegador; é transmitido ao backend SOMENTE para validação de metadados em requisições autenticadas, sem armazenamento, log ou URL com token.
+- É possível compartilhar IDs e metadados, nunca conteúdo audiovisual em nuvem. A versão móvel exibe histórico, canais e créditos; não reproduz mídia.
+- Links comuns de vídeos YouTube não oferecem download da mídia pela YouTube Data API; uma URL pública não é autorização para cópia. O cliente fornece arquivo original autorizado ou um link direto de arquivo permitido pelo proprietário.
+- Não há código de cloud transcode, nem gravação em bucket. WebM VP9/Opus é preferido quando o navegador suporta, ou MP4 quando compatível. O YouTube recebe o codec que o cliente conseguiu gerar.
 
-## Limitações antes do lançamento
+## Limitações declaradas
 
-- Seleção automática por IA, transcrição real, legendas sincronizadas e crop inteligente ainda não estão ligados ao editor web.
-- A exportação MP4 no navegador depende de MediaRecorder. O teste de Chromium Linux produziu MP4 com codecs VP9/Opus; o worker oferece conversão **apenas do MP4 final** para H.264/AAC quando ALLOW_SERVER_CODEC_FALLBACK=1. Essa conversão roda no servidor, tem custo adicional e vem DESLIGADA por padrão até medir custos. WebCodecs/muxer determinístico ainda não foram homologados.
-- Revisão móvel opcional de continuação de 30 segundos e Analytics do YouTube ainda não estão implementados.
-- Falta testar credenciais Google reais, Stripe em modo teste, bucket S3 real e upload privado de um vídeo autorizado.
-- Falta pilotar arquivos grandes, limites de memória, CPU, quota YouTube, retry, aprovação em múltiplos canais e custo operacional.
-- Necessário validar políticas do Google, direitos/licenças dos originais, LGPD, auditoria de segurança, UX e plano comercial antes de clientes reais.
+- Processamento de vídeo só com aba aberta. Upload direto pode ser retomado pela mesma sessão quando o navegador tiver as informações; aba fechada não significa processamento em background.
+- A pipeline atual faz corte manual por intervalo, vídeo em cima 57%, foto embaixo 43%, gancho e áudio; **não** possui ainda transcrição IA real, sincronização de legendas, crop automático de falante, Analytics, prévia móvel P2P ou WebCodecs determinístico para todas as origens.
+- Não prometer que 100 uploads/dia é quota universal de um canal nem que publicar conteúdo repetitivo em vários canais é permitido.
+- Os resultados de CI não equivalem a Stripe/Google/YouTube reais ou ambiente público implantado; faltam configurações e testes autenticados.
 
-**Importante:** sucesso de testes no GitHub não implica deploy em produção.
+**Não colocar produção em público até as integrações externas, segurança e piloto estarem homologados.**

@@ -114,6 +114,17 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 </fieldset>
 <div class="notice" id="saasFeedback" role="status">Para usar a conta SaaS, configure a URL da API, os dados públicos do Supabase e o Google Client ID. Nenhum original ou MP4 é armazenado no servidor.</div>
 <div id="saasStatus" aria-live="polite"></div>
+<div class="notice" style="margin-top:12px">
+<strong>Reconciliação de publicação</strong>
+<p class="muted">Se o YouTube concluiu o envio, mas o AutoClips não recebeu a confirmação, selecione o trabalho e informe o ID do vídeo no YouTube. Não inicie um segundo upload.</p>
+<label for="saasReconcileJob">Trabalho com resultado incerto</label>
+<select id="saasReconcileJob"></select>
+<label for="saasReconcileVideoId">ID exato do vídeo privado no YouTube (11 caracteres)</label>
+<input id="saasReconcileVideoId" maxlength="11" placeholder="abcDEF123_-">
+<button id="saasReconcile" class="secondary">Verificar vídeo e concluir crédito</button>
+</div>
+<div class="controls"><button id="saasLogout" class="secondary">Sair da conta</button></div>
+
 </section>
 </main>
 <script type="module" src="./app.js"></script>

@@ -35,19 +35,14 @@
 <button id="restore" class="secondary" hidden>Reabrir arquivos autorizados</button>
 </div></section>
 <section class="view" id="view-channels" hidden><div class="page-head"><div><div class="eyebrow">Minha conta</div><h1>Contas e canais</h1><p>Seus espaços de trabalho e permissões do Google.</p></div></div><div class="section-card" id="loginBox">
-<h2>3. Conectar ao AutoClips SaaS (opcional)</h2>
-<p>**Nenhum vídeo vai para o servidor AutoClips.** O original e o corte permanecem neste computador. Ao publicar, o navegador envia o corte diretamente à API do YouTube. O backend registra apenas IDs, metadados e créditos.</p>
-<div class="field-row">
-<div style="flex:1;min-width:190px"><label for="saasApi">URL da API SaaS</label><input id="saasApi" placeholder="https://api.seudominio.com"></div>
-<div style="flex:1;min-width:190px"><label for="saasSupabase">URL do Supabase Auth</label><input id="saasSupabase" placeholder="https://projeto.supabase.co"></div>
-<div style="flex:1;min-width:190px"><label for="saasPublishable">Chave pública do Supabase</label><input id="saasPublishable" autocomplete="off" placeholder="sb_publishable_..."></div>
-<div style="flex:1;min-width:190px"><label for="saasGoogleClientId">Google OAuth Client ID (público)</label><input id="saasGoogleClientId" autocomplete="off" placeholder="...apps.googleusercontent.com"></div>
-</div>
+<h2>Acesse seu AutoClips</h2>
+<p>Entre, crie seu espaço e conecte canais. Os originais e cortes continuam exclusivamente no seu computador.</p>
+
 <div class="field-row">
 <div style="flex:1;min-width:170px"><label for="saasEmail">E-mail</label><input id="saasEmail" type="email" autocomplete="email"></div>
 <div style="flex:1;min-width:170px"><label for="saasPassword">Senha</label><input id="saasPassword" type="password" autocomplete="current-password"></div>
 </div>
-<div class="controls"><button id="saasLogin">Entrar</button><button id="saasSignup" class="secondary">Criar conta</button></div>
+<div class="controls"><button class="btn primary" id="saasLogin">Entrar</button><button class="btn soft" id="saasSignup" class="secondary">Criar conta</button></div>
 <div class="field-row">
 <div style="flex:1"><label for="saasOrg">Espaço de trabalho</label><select id="saasOrg"></select></div>
 <div style="flex:1"><label for="saasOrgName">Nome do novo espaço</label><input id="saasOrgName" placeholder="Meu estúdio"></div>
@@ -72,7 +67,12 @@
 <div class="notice" id="saasFeedback" role="status">Para usar a conta SaaS, configure a URL da API, os dados públicos do Supabase e o Google Client ID. Nenhum original ou MP4 é armazenado no servidor.</div>
 <div class="controls"><button id="saasLogout" class="secondary">Sair da conta</button></div>
 
-</div></section>
+<details class="notice" style="margin-top:16px"><summary style="cursor:pointer;font-weight:800">Configurações avançadas de integração</summary><p class="small">Os dados públicos são carregados automaticamente na hospedagem. Nunca coloque chaves secretas aqui.</p><div class="field-row">
+<div style="flex:1;min-width:190px"><label for="saasApi">URL da API SaaS</label><input id="saasApi" placeholder="https://api.seudominio.com"></div>
+<div style="flex:1;min-width:190px"><label for="saasSupabase">URL do Supabase Auth</label><input id="saasSupabase" placeholder="https://projeto.supabase.co"></div>
+<div style="flex:1;min-width:190px"><label for="saasPublishable">Chave pública do Supabase</label><input id="saasPublishable" autocomplete="off" placeholder="sb_publishable_..."></div>
+<div style="flex:1;min-width:190px"><label for="saasGoogleClientId">Google OAuth Client ID (público)</label><input id="saasGoogleClientId" autocomplete="off" placeholder="...apps.googleusercontent.com"></div>
+</div></details></div></section>
 <section class="view" id="view-history" hidden><div class="page-head"><div><div class="eyebrow">Histórico online</div><h1>Publicações</h1><p>Estado dos cortes por canal, sem arquivos armazenados.</p></div><button class="btn soft" data-refresh type="button">Atualizar</button></div><div class="stat-list"><div class="stat-box"><span>Disponíveis</span><strong id="historyAvailable">—</strong></div><div class="stat-box"><span>Reservados</span><strong id="historyReserved">—</strong></div><div class="stat-box"><span>Confirmados</span><strong id="historyPublished">—</strong></div></div><div class="section-card"><div id="saasStatus" aria-live="polite"></div>
 <div class="notice" style="margin-top:12px">
 <strong>Reconciliação de publicação</strong>
@@ -91,7 +91,7 @@
 <article class="plan-card"><div class="plan-top"><h3>Escala</h3><span class="tagline">1.000 créditos</span></div><div class="plan-price">R$ 150,00 <small>pagamento único</small></div><p>1.000 vídeos publicados nos seus canais. Sem mensalidade obrigatória.</p><button type="button" class="btn primary" data-buy-credits="1000">Comprar créditos</button></article>
 </div><div class="section-card" style="margin-top:15px"><h2>Comprar quantidade personalizada</h2><p>R$ 0,15 por publicação, com mínimo de 100 créditos.</p><div class="field-row">
 <div><label for="saasBuyCount">Comprar créditos</label><input id="saasBuyCount" type="number" min="100" max="100000" step="100" value="100"></div>
-<div><button id="saasCheckout">Comprar por R$ 0,15/crédito</button></div>
+<div><button class="btn primary" id="saasCheckout">Comprar por R$ 0,15/crédito</button></div>
 <div><label>Carteira</label><strong id="saasCredits">—</strong></div>
 </div><div class="notice">Os créditos são liberados após confirmação do Stripe. Nenhum vídeo é enviado ao nosso servidor.</div></div></section>
 </main>
@@ -105,7 +105,7 @@
 <label for="subtitle">Legenda de teste (estática nesta prova)</label><input id="subtitle" value="" placeholder="Opcional — transcrição sincronizada virá depois">
 <label for="photo">Foto inferior autorizada (opcional; sem ela usa um frame do original)</label><input id="photo" type="file" accept="image/*">
 <label><input id="rights" type="checkbox">Confirmo que possuo direitos para editar este vídeo e a imagem selecionada.</label>
-<div class="controls"><button id="export">Gerar corte local</button><button id="pause" class="secondary" disabled>Pausar</button><button id="save" class="secondary" disabled>Salvar arquivo</button></div>
+<div class="controls"><button class="btn primary" id="export">Gerar corte local</button><button class="btn soft" id="pause" class="secondary" disabled>Pausar</button><button class="btn soft" id="save" class="secondary" disabled>Salvar arquivo</button></div>
 <progress id="progress" max="100" value="0"></progress><div id="status" class="status" aria-live="polite"></div>
 <div id="output" class="output"></div>
 </fieldset>
@@ -114,7 +114,7 @@
 <label for="saasDescription">Descrição</label><textarea id="saasDescription" rows="2" maxlength="5000" placeholder="Descrição e atribuições aplicáveis"></textarea>
 <div class="notice">O navegador pedirá autorização Google para publicar. Nenhum arquivo é enviado ao AutoClips. O usuário deve manter esta aba aberta durante o envio.</div>
 <label><input type="checkbox" id="saasApprovalCheck">Revisei a prévia local, tenho os direitos sobre todo o material e autorizo a publicação PRIVADA no canal escolhido.</label>
-<div class="controls"><button id="saasPrepare" class="secondary">1. Preparar publicação (reserva 1 crédito)</button><button id="saasPublish" disabled>2. Enviar diretamente ao YouTube</button></div><progress id="saasPublishProgress" value="0" max="100"></progress>
+<div class="controls"><button class="btn primary" id="saasPrepare" class="secondary">1. Preparar publicação (reserva 1 crédito)</button><button class="btn soft" id="saasPublish" disabled>2. Enviar diretamente ao YouTube</button></div><progress id="saasPublishProgress" value="0" max="100"></progress>
 </fieldset><div class="notice">Seus arquivos não ficam no nosso servidor.</div></aside></div>
 <nav class="mobile-tabs" aria-label="Menu móvel"><button type="button" class="active" data-view="studio">Feed</button><button type="button" class="" data-view="library">Arquivos</button><button type="button" class="" data-view="channels">Canais</button><button type="button" class="" data-view="history">Histórico</button><button type="button" class="" data-view="payments">Pagamentos</button></nav>
 <div id="studioToast" class="toast" role="status" aria-live="polite"></div>

@@ -319,3 +319,21 @@ A IA que implementar ou operar AutoClips deve demonstrar, com evidências:
 10. README/AGENTS atualizados para que outro agente saiba o que existe de verdade e o que ainda precisa construir.
 
 **Regra final:** se a execução não ficar visualmente semelhante à referência de 32 segundos enviada pelo usuário — especialmente foto inferior ocupando todo o quadro, gancho branco/vermelho na divisória, transcrição pequena acima e rosto visível na parte superior — **não aceitar como entrega final**. Corrigir e testar com material real.
+
+
+---
+
+## Atualização de arquitetura — 22/11/2026: AutoClips SaaS browser-first (WIP)
+
+Esta seção registra a **decisão mais recente do usuário** para uma modalidade nova. Ela altera o modo de processamento para o SaaS, mas **não remove nem desativa** o pipeline cloud-first/desktop legado ainda em operação.
+
+- O módulo web-local/ lê **somente** arquivos escolhidos no navegador; original longo nunca é enviado automaticamente ao servidor.
+- Worker no navegador compõe prévia e exporta o MP4 final apenas enquanto a aba de produção está aberta. Não alegar execução local em segundo plano depois de fechar.
+- O novo módulo saas-api/ é independente: usuários Supabase Auth, organizações, OAuth Google de canais, carteira de créditos Stripe, bucket S3 privado para MP4 final e worker de publicação.
+- A cobrança definida é **R$ 0,15 por publicação confirmada, 1 crédito por canal**; saldo é reservado ao aprovar e consumido apenas após confirmação de ID/canal privado, com idempotência transacional.
+- **Nenhum upload automático público.** A postagem inicial é privada após confirmação explícita de direitos, de canal e de publicação.
+- Em situação de resultado incerto da API YouTube, a fila não repete automaticamente, aguardando reconciliação verificada.
+- Consultar saas-api/README.md para configurar staging e para pendências reais: seleção automática IA, legendas sincronizadas, WebCodecs, OAuth real, Stripe real, review de 30 segundos e Analytics ainda não homologados.
+- Esta implementação permanece em uma pull request RASCUNHO isolada; não fazer merge nem substituir serviço de produção durante a prova. A integração e o lançamento dependem de testes com material real autorizado, avaliações de memória e segurança.
+
+**Regra de verdade:** arquivos de código e CI não significam que o SaaS esteja implantado, ativo para clientes ou pronto para publicar.

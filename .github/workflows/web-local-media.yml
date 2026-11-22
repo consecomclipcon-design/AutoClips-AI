@@ -39,6 +39,7 @@ jobs:
           sleep 2
           node web-local/e2e.mjs
           node web-local/direct-youtube.e2e.mjs
+          node web-local/transcription-mock.e2e.mjs
       - name: Inspect browser-generated file (no cloud transcoding)
         run: |
           f=$(find /tmp -maxdepth 1 -type f \( -name 'autoclips-fixture-*.mp4' -o -name 'autoclips-fixture-*.webm' \) | head -n1)

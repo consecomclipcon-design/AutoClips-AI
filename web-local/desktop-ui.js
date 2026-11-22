@@ -365,7 +365,7 @@ d("adCreateChannel").onclick=()=>{
   d("saasCreateOrg").click();
 };
 d("adLogout").onclick=()=>{d("saasLogout").click();updateChannels();notify("Sessão encerrada.");};
-d("adReviewMobile").onclick=()=>{window.location.assign("./review.html");};
+
 d("adAdvanced").onclick=()=>{
   const api=d("saasApi").value||"Não configurada";
   const auth=d("saasSupabase").value||"Não configurado";

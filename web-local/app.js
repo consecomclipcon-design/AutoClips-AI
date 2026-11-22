@@ -1,7 +1,11 @@
+import {transcribeVideo} from "./transcribe.js";
+import {parseSubtitles, captionAt, suggestClips} from "./captions.js";
+
 /* AutoClips - prova local independente do dashboard existente.
    Nenhum upload, acesso de rede, cookies de terceiros ou credenciais Google. */
 const el = (id) => document.getElementById(id);
 const video = el("source"), canvas = el("composition"), ctx = canvas.getContext("2d", { alpha: false });
+let cues = [], captionVersion = 0, transcription = null;
 const worker = typeof Worker !== "undefined" ? new Worker("./render.worker.js") : null;
 const state = {
   db: null, entries: [], files: new Map(), selected: null, objectUrl: null,
@@ -98,6 +102,13 @@ async function selectEntry(entry) {
   if (!file) { el("inputFiles").click(); status("Escolha novamente o arquivo deste trabalho."); return; }
   video.pause();
   if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
+  transcription?.abort(); transcription = null;
+  captionVersion++; cues = [];
+  el("adCaptionFile").value = "";
+  el("adCaptionStatus").textContent = "Nenhuma legenda sincronizada.";
+  el("adTranscribe").textContent = "Transcrever vídeo";
+  el("adSuggestClips").disabled = true;
+  el("adClipSuggestions").replaceChildren();
   state.selected = entry;
   state.objectUrl = URL.createObjectURL(file);
   video.src = state.objectUrl;
@@ -115,7 +126,8 @@ async function selectEntry(entry) {
 function configureWorker() {
   worker?.postMessage({
     type: "configure", white: el("hookWhite").value, red: el("hookRed").value,
-    subtitle: el("subtitle").value
+    subtitle: el("subtitle").value.trim() ||
+      captionAt(state.recording?.cues ?? cues, video.currentTime)
   });
 }
 worker?.addEventListener("message", ({ data }) => {
@@ -136,6 +148,7 @@ async function renderFrame() {
   if (!worker || state.frameBusy || video.readyState < 2 || !video.videoWidth) return;
   state.frameBusy = true;
   try {
+    configureWorker();
     const bitmap = await createImageBitmap(video);
     worker.postMessage({ type: "frame", seq: ++state.frameSeq, bitmap }, [bitmap]);
   } catch (error) {
@@ -189,6 +202,94 @@ for (const input of ["start", "end"]) {
     if (input === "start" && Number.isFinite(state.selected.start)) video.currentTime = state.selected.start;
   });
 }
+
+function setCues(next, message) {
+  cues = next;
+  el("adCaptionFile").value = "";
+  el("adClipSuggestions").replaceChildren();
+  el("adSuggestClips").disabled = !cues.length;
+  el("adCaptionStatus").textContent = message;
+  renderFrame();
+}
+el("adTranscribe").onclick = async () => {
+  const button = el("adTranscribe"), info = el("adCaptionStatus");
+  if (transcription && !transcription.signal.aborted) { transcription.abort(); return; }
+  const file = state.files.get(state.selected?.id);
+  if (!file || !Number.isFinite(video.duration) || video.duration <= 0 || state.recording) {
+    info.textContent = "Abra um vídeo local e aguarde o carregamento antes de transcrever.";
+    return;
+  }
+  const controller = new AbortController(), version = ++captionVersion;
+  transcription = controller;
+  button.textContent = "Cancelar transcrição";
+  el("adSuggestClips").disabled = true;
+  info.textContent = "Extraindo áudio exclusivamente no seu navegador…";
+  try {
+    const result = await transcribeVideo(file, video.duration, {
+      signal: controller.signal,
+      onProgress(message) { if (version === captionVersion) info.textContent = message; },
+    });
+    if (version !== captionVersion) return;
+    setCues(result, result.length + " falas transcritas e sincronizadas no seu computador.");
+  } catch(error) {
+    if (version === captionVersion)
+      info.textContent = controller.signal.aborted ? "Transcrição cancelada." :
+        (error?.message || String(error)) + " Você pode importar SRT/VTT.";
+  } finally {
+    if (transcription === controller) {
+      transcription = null; button.textContent = "Transcrever vídeo";
+    }
+    if (version === captionVersion) el("adSuggestClips").disabled = !cues.length;
+  }
+};
+el("adCaptionFile").onchange = async event => {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  if (state.recording) { el("adCaptionStatus").textContent = "Finalize a exportação antes de trocar legendas."; return; }
+  transcription?.abort(); transcription = null;
+  const version = ++captionVersion;
+  try {
+    if (file.size > 2_000_000) throw Error("Legenda acima de 2 MB.");
+    const parsed = parseSubtitles(await file.text(), Number.isFinite(video.duration) ? video.duration : Infinity);
+    if (version === captionVersion) setCues(parsed, parsed.length + " falas carregadas de SRT/VTT, localmente.");
+  } catch(error) {
+    if(version === captionVersion) el("adCaptionStatus").textContent = error?.message || String(error);
+  } finally {
+    event.currentTarget.value = "";
+  }
+};
+el("adSuggestClips").onclick = () => {
+  const target = el("adClipSuggestions");
+  target.replaceChildren();
+  const proposals = suggestClips(cues, video.duration, 3);
+  if (!proposals.length) {
+    el("adCaptionStatus").textContent = "Poucas falas para sugerir cortes de 13–45 segundos. Ajuste manualmente.";
+    return;
+  }
+  for (const proposal of proposals) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ad-list-row";
+    const label = document.createElement("span");
+    label.textContent = proposal.start.toFixed(1) + "s — " + proposal.end.toFixed(1) +
+      "s · " + proposal.hook;
+    button.append(label);
+    button.onclick = async () => {
+      if (state.recording) return;
+      el("start").value = String(proposal.start);
+      el("end").value = String(proposal.end);
+      el("adCutStart").value = String(proposal.start);
+      el("adCutEnd").value = String(proposal.end);
+      el("start").dispatchEvent(new Event("change"));
+      el("end").dispatchEvent(new Event("change"));
+      // O gancho é editável, sem substituir o texto original automaticamente.
+      video.currentTime = proposal.start;
+      el("adCaptionStatus").textContent = "Intervalo escolhido. Revise a prévia e o gancho antes de exportar.";
+    };
+    target.append(button);
+  }
+};
+
 el("choose").onclick = () => el("inputFiles").click();
 el("inputFiles").onchange = async () => {
   let count = 0;
@@ -302,6 +403,7 @@ async function startExport() {
     const recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 2_500_000 });
     const chunks = [];
     const job = { start, end, recorder, combined, destination, chunks, mime, paused: false, finished: false };
+    job.cues = cues.map(cue => ({...cue}));
     state.recording = job;
     state.selected.status = "processando localmente"; await store(state.selected); updateFileList();
     el("pause").disabled = false; el("pause").textContent = "Pausar";

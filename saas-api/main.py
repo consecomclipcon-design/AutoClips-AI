@@ -361,24 +361,28 @@ def create_job(body: JobCreate, user: UUID = Depends(current_user), conn=Depends
     if not channel or not channel["active"]:
         raise HTTPException(404, "Selected channel unavailable")
     with conn.transaction():
+        # ON CONFLICT DO NOTHING protects against concurrent duplicate browser retries.
+        inserted = conn.execute(
+            """insert into autoclips_saas.jobs
+               (org_id,channel_id,client_key,expected_sha256,expected_bytes,title,description,status)
+               values(%s,%s,%s,%s,%s,%s,%s,'ready')
+               on conflict(org_id,client_key) do nothing returning *""",
+            (body.org_id, body.channel_id, body.client_key, body.sha256, body.size_bytes,
+             body.title.strip(), body.description),
+        ).fetchone()
+        if inserted:
+            return public_job(inserted)
         previous = conn.execute(
             """select * from autoclips_saas.jobs where org_id=%s and client_key=%s for update""",
             (body.org_id, body.client_key),
         ).fetchone()
-        if previous:
-            if (previous["expected_sha256"] != body.sha256 or
-                    previous["channel_id"] != body.channel_id or
-                    previous["expected_bytes"] != body.size_bytes):
-                raise HTTPException(409, "Idempotency key already used with other media or channel")
-            return public_job(previous)
-        created = conn.execute(
-            """insert into autoclips_saas.jobs
-               (org_id,channel_id,client_key,expected_sha256,expected_bytes,title,description,status)
-               values(%s,%s,%s,%s,%s,%s,%s,'ready') returning *""",
-            (body.org_id, body.channel_id, body.client_key, body.sha256, body.size_bytes,
-             body.title.strip(), body.description),
-        ).fetchone()
-    return public_job(created)
+        if not previous:
+            raise HTTPException(409, "Publication key conflict; refresh before retrying")
+        if (previous["expected_sha256"] != body.sha256 or
+                previous["channel_id"] != body.channel_id or
+                previous["expected_bytes"] != body.size_bytes):
+            raise HTTPException(409, "Idempotency key already used with other media or channel")
+        return public_job(previous)
 
 
 @app.post("/v1/jobs/{job_id}/approve")

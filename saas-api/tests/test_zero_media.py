@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 import main
 from core import capture_credit, reserve_credit
-from test_ledger import setup_org, setup_job, wallet
+from test_ledger import setup_org, setup_job, wallet, conn
 
 
 def test_media_upload_is_blocked_by_middleware():

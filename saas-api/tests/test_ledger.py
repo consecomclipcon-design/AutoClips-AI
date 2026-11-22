@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 import psycopg
+from psycopg.rows import dict_row
 from fastapi import HTTPException
 
 from core import (
@@ -12,7 +13,7 @@ from core import (
 
 @pytest.fixture
 def conn():
-    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as db:
+    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, row_factory=dict_row) as db:
         with db.transaction():
             db.execute("truncate autoclips_saas.organizations cascade")
         yield db
@@ -23,7 +24,7 @@ def setup_org(conn, credits=0):
     with conn.transaction():
         org = conn.execute(
             "insert into autoclips_saas.organizations(name) values('Test tenant') returning id"
-        ).fetchone()[0]
+        ).fetchone()["id"]
         conn.execute(
             "insert into autoclips_saas.memberships(org_id,user_id,role) values(%s,%s,'owner')",
             (org, user_id),
@@ -36,7 +37,7 @@ def setup_org(conn, credits=0):
             """insert into autoclips_saas.channels(org_id,youtube_channel_id,title,token_ciphertext,scopes)
                values(%s,%s,'Test channel','CIPHERTEXT_TEST','read upload') returning id""",
             (org, "UC" + uuid4().hex[:22]),
-        ).fetchone()[0]
+        ).fetchone()["id"]
     return org, user_id, channel
 
 
@@ -47,13 +48,14 @@ def setup_job(conn, org, channel, key="local-file-unique"):
                (org_id,channel_id,client_key,object_key,expected_sha256,expected_bytes,title,status)
                values(%s,%s,%s,%s,%s,10000,'Test clip','ready') returning id""",
             (org, channel, key, "tenant/" + uuid4().hex + ".mp4", "a" * 64),
-        ).fetchone()[0]
+        ).fetchone()["id"]
 
 
 def wallet(conn, org):
-    return conn.execute(
+    row = conn.execute(
         "select available,reserved from autoclips_saas.wallets where org_id=%s", (org,)
     ).fetchone()
+    return row["available"], row["reserved"]
 
 
 def test_reserve_capture_once(conn):
@@ -75,7 +77,7 @@ def test_reserve_capture_once(conn):
     rows = conn.execute(
         "select kind,count(*) from autoclips_saas.credit_events where job_id=%s group by kind", (job,)
     ).fetchall()
-    assert sorted(rows) == [("capture", 1), ("reserve", 1)]
+    assert sorted((r["kind"], r["count"]) for r in rows) == [("capture", 1), ("reserve", 1)]
 
 
 def test_one_credit_two_jobs_prevents_overspend(conn):

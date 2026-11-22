@@ -129,6 +129,7 @@ try {
   page.on("pageerror", err => errors.push(err.message));
   await page.goto("http://127.0.0.1:8080/", { waitUntil: "domcontentloaded" });
   await page.locator('[data-view="channels"]').first().click();
+  await page.locator("#view-channels details").first().evaluate(node => { node.open = true; });
   await page.locator("#saasApi").fill("https://api.example.com");
   await page.locator("#saasSupabase").fill("https://sample.supabase.co");
   await page.locator("#saasPublishable").fill("sb_publishable_test");

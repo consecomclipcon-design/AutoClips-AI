@@ -1,0 +1,5 @@
+{
+  "apiUrl": "https://YOUR-STAGING-API.example.com",
+  "supabaseUrl": "https://YOUR-PROJECT.supabase.co",
+  "supabasePublishableKey": "sb_publishable_REPLACE"
+}

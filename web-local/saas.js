@@ -213,16 +213,22 @@ ui.upload.onclick = async () => {
     if (!e("rights").checked) throw Error("Confirme os direitos do material no editor.");
     feedback("Calculando SHA-256 localmente...");
     const sha256 = hex(await crypto.subtle.digest("SHA-256", await result.blob.arrayBuffer()));
-    result.uploadClientKey ||= crypto.randomUUID();
+    const stableClientKey = "sha256:" + sha256 + ":channel:" + ui.channel.value;
     const created = await request("/v1/exports", {
       method: "POST", body: JSON.stringify({
         org_id: orgId(), channel_id: ui.channel.value,
-        client_key: result.uploadClientKey, sha256, size_bytes: result.blob.size,
+        client_key: stableClientKey, sha256, size_bytes: result.blob.size,
         title: ui.title.value || result.name.slice(0, 100), description: ui.description.value || ""
       })
     });
     const id = created.job.id;
     lastJobId = id;
+    if (created.already_uploaded && created.job.status !== "ready") {
+      ui.approve.disabled = true;
+      feedback("Esta publicação já existe no canal (" + created.job.status + "). Nova postagem duplicada bloqueada.");
+      await refreshWorkspace();
+      return;
+    }
     if (!created.already_uploaded) {
       feedback("Enviando somente o MP4 final ao bucket privado...");
       const response = await fetch(created.upload_url, {

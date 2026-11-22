@@ -34,8 +34,8 @@ def setup_org(conn, credits=0):
             (org, credits, credits),
         )
         channel = conn.execute(
-            """insert into autoclips_saas.channels(org_id,youtube_channel_id,title,token_ciphertext,scopes)
-               values(%s,%s,'Test channel','CIPHERTEXT_TEST','read upload') returning id""",
+            """insert into autoclips_saas.channels(org_id,youtube_channel_id,title)
+               values(%s,%s,'Test channel') returning id""",
             (org, "UC" + uuid4().hex[:22]),
         ).fetchone()["id"]
     return org, user_id, channel
@@ -45,9 +45,9 @@ def setup_job(conn, org, channel, key="local-file-unique"):
     with conn.transaction():
         return conn.execute(
             """insert into autoclips_saas.jobs
-               (org_id,channel_id,client_key,object_key,expected_sha256,expected_bytes,title,status)
-               values(%s,%s,%s,%s,%s,10000,'Test clip','ready') returning id""",
-            (org, channel, key, "tenant/" + uuid4().hex + ".mp4", "a" * 64),
+               (org_id,channel_id,client_key,expected_sha256,expected_bytes,title,status)
+               values(%s,%s,%s,%s,10000,'Test clip','ready') returning id""",
+            (org, channel, key, "a" * 64),
         ).fetchone()["id"]
 
 

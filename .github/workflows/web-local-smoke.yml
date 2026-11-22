@@ -1,0 +1,33 @@
+name: Web-local smoke
+on:
+  push:
+    paths:
+      - 'web-local/**'
+      - '.github/workflows/web-local-smoke.yml'
+  pull_request:
+    paths:
+      - 'web-local/**'
+      - '.github/workflows/web-local-smoke.yml'
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check browser script syntax
+        run: |
+          node --check web-local/app.js
+          node --check web-local/render.worker.js
+      - name: Serve isolated folder (no production service)
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory web-local >/tmp/web-local.log 2>&1 &
+          for i in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8080/ -o /tmp/autoclips-local.html; then break; fi
+            sleep 1
+          done
+          grep -q 'AutoClips' /tmp/autoclips-local.html
+          curl -fsS http://127.0.0.1:8080/app.js -o /dev/null
+          curl -fsS http://127.0.0.1:8080/render.worker.js -o /dev/null

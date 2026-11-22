@@ -58,6 +58,7 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 </div>
 <div class="notice">Limitações da prova: exportação em tempo real até 180 segundos, 540×960, sem edição automática por IA. MP4 é usado apenas quando o navegador oferece suporte; caso contrário, a saída será WebM. O processamento interrompe ao fechar a aba.</div>
 
+<p><a href="./review.html" style="color:#ff9d85">Abrir revisão pelo celular</a></p>
 <section class="panel" id="saas" style="margin-top:20px" aria-label="AutoClips SaaS">
 <h2>3. Conectar ao AutoClips SaaS (opcional)</h2>
 <p>O original longo permanece no computador. Somente o MP4 final aprovado pode ser enviado ao armazenamento privado. A publicação começa privada e exige confirmação.</p>
@@ -80,6 +81,16 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 <div style="flex:1"><label for="saasChannel">Canal de publicação</label><select id="saasChannel"></select></div>
 </div>
 <div class="controls"><button id="saasConnect" class="secondary">Conectar canal via Google</button></div>
+
+<div class="field-row">
+<div style="flex:1;min-width:190px"><label for="saasSourceId">ID do canal de origem (UC...)</label><input id="saasSourceId" placeholder="UCxxxxxxxxxxxxxxxxxxxxxx"></div>
+<div style="flex:1;min-width:190px"><label for="saasRightsBasis">Base da autorização do material</label><input id="saasRightsBasis" placeholder="Sou o titular / licença concedida"></div>
+</div>
+<div class="controls"><button id="saasRegisterSource" class="secondary">Cadastrar origem</button></div>
+<label for="saasSourceList">Origens cadastradas</label><select id="saasSourceList"></select>
+<div class="controls"><button id="saasDiscover" class="secondary">Descobrir IDs (sem baixar vídeos)</button></div>
+<div class="muted" id="saasDiscoverResults"></div>
+
 <div class="field-row">
 <div><label for="saasBuyCount">Comprar créditos</label><input id="saasBuyCount" type="number" min="100" max="100000" step="100" value="100"></div>
 <div><button id="saasCheckout">Comprar por R$ 0,15/crédito</button></div>

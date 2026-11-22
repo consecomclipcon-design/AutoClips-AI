@@ -444,12 +444,7 @@ el("downloadSource").onclick = async () => {
   }
   let handle;
   try {
-    handle = await window.showSaveFilePicker({
-      suggestedName: suggested,
-      types: [{ description: "Vídeo original autorizado", accept: {
-        "video/mp4": [".mp4"], "video/webm": [".webm"]
-      } }],
-    });
+    handle = await window.showSaveFilePicker({ suggestedName: suggested });
   } catch (err) {
     if (err.name !== "AbortError") status("Não foi possível escolher o destino: " + err.message);
     return;

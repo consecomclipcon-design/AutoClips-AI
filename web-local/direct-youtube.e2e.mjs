@@ -19,7 +19,8 @@ const page = await browser.newPage({ acceptDownloads: true });
 const json = (route, body, status = 200, extraHeaders = {}) => route.fulfill({
   status, contentType: "application/json",
   headers: { "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-YouTube-Access-Token",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-YouTube-Access-Token, X-Upload-Content-Type, X-Upload-Content-Length, Content-Range",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
     "Access-Control-Expose-Headers": "Location, Range", ...extraHeaders },
   body: JSON.stringify(body)
 });
@@ -45,10 +46,12 @@ try {
   await page.route("https://accounts.google.com/gsi/client", route =>
     route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
   await page.route("https://sample.supabase.co/**", route =>
+    route.request().method() === "OPTIONS" ? json(route, {}, 204) :
     json(route, { access_token: "test-supabase-session", user: { id: orgId } }));
 
   await page.route(/https:\/\/api\.example\.com\/v1\//, async route => {
     const req = route.request();
+    if (req.method() === "OPTIONS") return json(route, {}, 204);
     const url = new URL(req.url()), path = url.pathname;
     const body = req.postData() || "";
     if (body.length > 32768 || /video\//.test(req.headers()["content-type"] || "")) {
@@ -101,6 +104,7 @@ try {
   });
   await page.route("https://www.googleapis.com/**", async route => {
     const req = route.request(), url = new URL(req.url());
+    if (req.method() === "OPTIONS") return json(route, {}, 204);
     if (url.pathname === "/youtube/v3/channels") {
       return json(route, { items: [{ id: googleChannel, snippet: { title: "Own channel" } }] });
     }

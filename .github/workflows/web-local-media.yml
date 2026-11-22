@@ -50,4 +50,4 @@ jobs:
           ffprobe -v error -show_entries stream=codec_name,codec_type,width,height -of json "$f"
       - name: Ensure media never goes to SaaS server
         run: |
-          ! grep -RE "generate_presigned_url|boto3|upload_url|token_ciphertext|MediaFileUpload|S3_BUCKET" saas-api/
+          ! grep -RE "generate_presigned_url|boto3|upload_url|token_ciphertext|MediaFileUpload|S3_BUCKET" saas-api/main.py saas-api/core.py

@@ -6,3 +6,5 @@ COPY web-local/entrypoint.sh /opt/autoclips-entrypoint.sh
 RUN chmod 755 /opt/autoclips-entrypoint.sh
 EXPOSE 8080
 ENTRYPOINT ["/opt/autoclips-entrypoint.sh"]
+
+# ZERO MEDIA Studio: only static browser assets are included; no Python/FFmpeg worker.

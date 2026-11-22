@@ -13,7 +13,8 @@ const ui = {
   sourceId: e("saasSourceId"), basis: e("saasRightsBasis"),
   sourceList: e("saasSourceList"), discovery: e("saasDiscoverResults"),
   prepare: e("saasPrepare"), publish: e("saasPublish"),
-  progress: e("saasPublishProgress")
+  progress: e("saasPublishProgress"), reconcileJob: e("saasReconcileJob"),
+  reconcileVideoId: e("saasReconcileVideoId")
 };
 const YOUTUBE_READ = "https://www.googleapis.com/auth/youtube.readonly";
 const YOUTUBE_UPLOAD = "https://www.googleapis.com/auth/youtube.upload";
@@ -84,6 +85,15 @@ async function refreshWorkspace() {
     ui.sourceList.append(opt);
   }
   if (sources.some(x => x.id === selectedSource)) ui.sourceList.value = selectedSource;
+  const selectedRecon = ui.reconcileJob.value;
+  ui.reconcileJob.replaceChildren();
+  for (const issue of jobs.filter(j => j.status === "needs_reconciliation" || j.status === "uploading")) {
+    const opt = document.createElement("option");
+    opt.value = issue.id;
+    opt.textContent = issue.title + " · " + issue.status;
+    ui.reconcileJob.append(opt);
+  }
+  if (jobs.some(j => j.id === selectedRecon)) ui.reconcileJob.value = selectedRecon;
   ui.status.replaceChildren();
   if (!jobs.length) ui.status.textContent = "Nenhuma publicação registrada.";
   for (const job of jobs.slice(0, 20)) {
@@ -301,7 +311,9 @@ ui.prepare.onclick = async () => {
       method: "POST",
       body: JSON.stringify({ org_id: orgId(), rights_confirmed: true, visibility: "private" }),
     });
-    lastPrepared = { jobId: job.id, blob: output.blob, mime: output.blob.type, channel };
+    lastPrepared = { jobId: job.id, blob: output.blob, mime: output.blob.type,
+      channel, title: (ui.title.value.trim() || output.name).slice(0, 100),
+      description: ui.description.value.slice(0, 5000) };
     ui.publish.disabled = false;
     await refreshWorkspace();
     feedback("1 crédito reservado. Clique em 'Enviar diretamente ao YouTube' para consentir no Google.");
@@ -403,8 +415,8 @@ ui.publish.onclick = async () => {
     if (!owned.some(row => row.id === prepared.channel.youtube_channel_id))
       throw Error("A conta Google selecionada NÃO corresponde ao canal de destino. Upload bloqueado.");
     if (!e("saasApprovalCheck").checked) throw Error("Confirmação de direitos não está marcada.");
-    const title = (ui.title.value.trim() || "AutoClips") .slice(0, 100);
-    const description = ui.description.value.slice(0, 5000);
+    const title = prepared.title;
+    const description = prepared.description;
     await api("/v1/jobs/" + prepared.jobId + "/begin", {
       method: "POST", body: JSON.stringify({ org_id: orgId() }),
     });
@@ -441,6 +453,38 @@ ui.publish.onclick = async () => {
     }
     await refreshWorkspace().catch(() => {});
   }
+};
+e("saasReconcile").onclick = async () => {
+  try {
+    if (!ui.reconcileJob.value) throw Error("Nenhum trabalho aguardando reconciliação.");
+    if (!/^[A-Za-z0-9_-]{11}$/.test(ui.reconcileVideoId.value.trim()))
+      throw Error("Informe exatamente o ID YouTube de 11 caracteres.");
+    if (!session) throw Error("Entre na sua conta primeiro.");
+    // A short-lived Google read token is required to verify actual channel ownership.
+    const token = await ensureGoogle([YOUTUBE_READ]);
+    const result = await api("/v1/jobs/" + ui.reconcileJob.value + "/complete", {
+      method: "POST",
+      headers: { "X-YouTube-Access-Token": token },
+      body: JSON.stringify({
+        org_id: orgId(), youtube_video_id: ui.reconcileVideoId.value.trim()
+      }),
+    });
+    await refreshWorkspace();
+    feedback("Publicação privada confirmada pelo Google. ID " + result.youtube_video_id +
+      "; 1 crédito capturado sem reenviar o vídeo.");
+  } catch (error) { feedback("Reconciliação: " + error.message); }
+};
+e("saasLogout").onclick = () => {
+  if (googleAccess?.token && window.google?.accounts?.oauth2?.revoke) {
+    try { google.accounts.oauth2.revoke(googleAccess.token, () => {}); } catch {}
+  }
+  session = null; googleAccess = null; lastPrepared = null;
+  ui.publish.disabled = true;
+  ui.password.value = "";
+  ui.org.replaceChildren(); ui.channel.replaceChildren(); ui.sourceList.replaceChildren();
+  ui.reconcileJob.replaceChildren(); ui.status.replaceChildren();
+  ui.credits.textContent = "Sessão encerrada.";
+  feedback("Você saiu. Nenhum vídeo foi enviado nem apagado do computador.");
 };
 (async () => {
   try {

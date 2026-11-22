@@ -1,0 +1,41 @@
+name: Web-local media integration
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/browser-local-poc-20261122
+    paths:
+      - 'web-local/**'
+      - '.github/workflows/web-local-media.yml'
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install headless browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Create synthetic media fixture (not an editorial validation)
+        run: |
+          ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i "testsrc2=size=640x360:rate=24" \
+            -f lavfi -i "sine=frequency=440:sample_rate=48000" \
+            -t 4 -c:v libx264 -preset ultrafast -pix_fmt yuv420p \
+            -c:a aac -b:a 96k /tmp/autoclips-fixture.mp4
+      - name: Start static web app and export one clip
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory web-local >/tmp/web-local.log 2>&1 &
+          sleep 2
+          node web-local/e2e.mjs
+      - name: Check streams of rendered file
+        run: |
+          f=$(find /tmp -maxdepth 1 -type f \( -name 'autoclips-fixture-*.mp4' -o -name 'autoclips-fixture-*.webm' \) | head -n1)
+          test -n "$f"
+          ffprobe -v error -show_entries stream=codec_type -of csv=p=0 "$f" > /tmp/streams.txt
+          grep -q video /tmp/streams.txt
+          grep -q audio /tmp/streams.txt

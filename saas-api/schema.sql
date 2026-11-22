@@ -1,4 +1,5 @@
--- AutoClips SaaS: isolated, private Postgres schema. Apply only to a reviewed staging database.
+-- AutoClips SaaS: ZERO-MEDIA private metadata schema. Apply only to an empty/reviewed database.
+-- Replaces the unmerged experimental schema; do not use as an in-place production migration.
 -- No table in this schema is exposed to anon/authenticated in the Supabase Data API.
 create schema if not exists autoclips_saas;
 revoke all on schema autoclips_saas from public, anon, authenticated;
@@ -30,23 +31,12 @@ create table if not exists autoclips_saas.channels (
   org_id uuid not null references autoclips_saas.organizations(id) on delete cascade,
   youtube_channel_id text not null check (length(youtube_channel_id) between 12 and 64),
   title text not null,
-  token_ciphertext text not null,
-  scopes text not null,
+  -- Google OAuth tokens NEVER persist here; access is granted in each user's browser.
   active boolean not null default true,
   created_at timestamptz not null default now(),
   unique (org_id, youtube_channel_id),
   unique (id, org_id)
 );
-create table if not exists autoclips_saas.oauth_states (
-  state_hash text primary key,
-  org_id uuid not null references autoclips_saas.organizations(id) on delete cascade,
-  user_id uuid not null,
-  code_verifier text not null,
-  expires_at timestamptz not null,
-  used_at timestamptz,
-  created_at timestamptz not null default now()
-);
-create index if not exists oauth_states_expiry on autoclips_saas.oauth_states(expires_at);
 create table if not exists autoclips_saas.sources (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references autoclips_saas.organizations(id) on delete cascade,
@@ -79,23 +69,21 @@ create table if not exists autoclips_saas.jobs (
   channel_id uuid not null,
   source_id uuid,
   client_key text not null check (length(client_key) between 8 and 180),
-  object_key text not null unique,
+  -- Only metadata (hash and size). Original and final video bytes never reach this database.
   expected_sha256 text not null check (expected_sha256 ~ '^[0-9a-f]{64}$'),
   expected_bytes bigint not null check (expected_bytes between 1024 and 1073741824),
-  verified_bytes bigint,
   title text not null check (length(title) between 1 and 100),
   description text not null default '',
   visibility text not null default 'private' check (visibility in ('private')),
   rights_confirmed boolean not null default false,
   approved_by uuid,
-  status text not null default 'awaiting_media'
-    check (status in ('awaiting_media','ready','queued','uploading','published','needs_reconciliation','cancelled')),
+  status text not null default 'ready'
+    check (status in ('ready','queued','uploading','published','needs_reconciliation','cancelled')),
   credit_state text not null default 'none'
     check (credit_state in ('none','reserved','captured','released')),
   youtube_video_id text,
   attempt_count integer not null default 0 check (attempt_count >= 0),
   last_error text,
-  locked_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint job_channel_tenant foreign key (channel_id,org_id) references autoclips_saas.channels(id,org_id),
@@ -137,7 +125,7 @@ do $$
 declare tbl text;
 begin
   foreach tbl in array array[
-    'organizations','memberships','wallets','channels','oauth_states',
+    'organizations','memberships','wallets','channels',
     'sources','source_videos','jobs','credit_events','stripe_checkouts'
   ] loop
     execute format('alter table autoclips_saas.%I enable row level security',tbl);

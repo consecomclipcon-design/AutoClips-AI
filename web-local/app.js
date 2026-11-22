@@ -410,3 +410,88 @@ async function initialize() {
 }
 window.autoclipsLocalGetExport = () => state.output;
 initialize();
+
+/* Explicitly authorized direct-to-client download. No proxy, no SaaS bucket, no server video.
+   The chooser MUST be invoked synchronously from the user's button gesture.
+   Streaming writes avoid loading the entire original into browser RAM.
+*/
+el("downloadSource").onclick = async () => {
+  const status = message => { el("downloadStatus").textContent = message; };
+  const progress = el("downloadProgress");
+  progress.value = 0;
+  if (!el("downloadRights").checked) {
+    status("Confirme que possui licença/autorização para baixar o arquivo."); return;
+  }
+  let url;
+  try {
+    url = new URL(el("sourceUrl").value.trim());
+    if (url.protocol !== "https:") throw Error("A URL deve ser HTTPS.");
+    if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$|(^|\.)youtube-nocookie\.com$/.test(url.hostname)) {
+      throw Error("Links de páginas do YouTube não disponibilizam downloads de mídia autorizada via API. Escolha seu arquivo original ou uma fonte direta licenciada.");
+    }
+    if (url.username || url.password) throw Error("Não inclua credenciais na URL.");
+  } catch (err) { status("URL inválida: " + err.message); return; }
+  const suggested = decodeURIComponent(url.pathname.split("/").pop() || "video.mp4")
+    .replace(/[\\/:*?"<>|]/g, "-").slice(0, 100) || "video.mp4";
+  const button = el("downloadSource");
+  if (!("showSaveFilePicker" in window)) {
+    // Cross-origin "download" can be ignored by a browser, so open the authorized link.
+    const a = document.createElement("a");
+    a.href = url.toString(); a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.download = suggested; a.click();
+    status("Seu navegador não permite selecionar uma pasta por esta API. O link foi aberto diretamente para download manual; nenhum arquivo passou pelo AutoClips.");
+    return;
+  }
+  let handle;
+  try {
+    handle = await window.showSaveFilePicker({
+      suggestedName: suggested,
+      types: [{ description: "Vídeo original autorizado", accept: {
+        "video/mp4": [".mp4"], "video/webm": [".webm"]
+      } }],
+    });
+  } catch (err) {
+    if (err.name !== "AbortError") status("Não foi possível escolher o destino: " + err.message);
+    return;
+  }
+  button.disabled = true;
+  let writable = null;
+  try {
+    const response = await fetch(url.toString(), {
+      mode: "cors", credentials: "omit", redirect: "follow", cache: "no-store",
+    });
+    if (!response.ok || !response.body) throw Error("Servidor da origem recusou o download. HTTP " + response.status);
+    const mime = (response.headers.get("Content-Type") || "").split(";")[0].toLowerCase();
+    if (!mime.startsWith("video/") && mime !== "application/octet-stream")
+      throw Error("Origem retornou conteúdo não reconhecido como vídeo.");
+    const length = Number(response.headers.get("Content-Length") || 0);
+    const cap = 2 * 1024 * 1024 * 1024;
+    if (length > cap) throw Error("Arquivo acima do limite de 2 GB definido nesta versão.");
+    writable = await handle.createWritable();
+    const reader = response.body.getReader();
+    let received = 0;
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      received += next.value.byteLength;
+      if (received > cap) { await reader.cancel(); throw Error("Arquivo excedeu 2 GB."); }
+      await writable.write(next.value);
+      if (length) progress.value = Math.min(100, 100 * received / length);
+      status("Baixando diretamente para o seu computador: " +
+        (received / (1024 * 1024)).toFixed(1) + " MB");
+    }
+    await writable.close();
+    writable = null;
+    progress.value = 100;
+    const file = await handle.getFile();
+    if (!videoFile(file)) throw Error("O arquivo salvo não foi reconhecido como vídeo pelo editor.");
+    await addFile(file, handle);
+    updateFileList();
+    await selectEntry(state.entries.find(entry => entry.id === idFor(file)));
+    status("Download concluído e original aberto LOCALMENTE. Nenhum arquivo passou por nossos servidores.");
+  } catch (err) {
+    if (writable) { try { await writable.abort(); } catch {} }
+    status("Download não concluído: " + err.message +
+      " · Se a origem bloquear CORS, baixe o arquivo manualmente e use Escolher vídeos.");
+  } finally { button.disabled = false; }
+};

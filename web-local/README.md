@@ -1,3 +1,34 @@
+# AutoClips Studio — interface original + planos e pagamentos
+
+A versão SaaS usa a **mesma base visual de \`dashboard.html\` da versão original**: logo ▶ AutoClips Studio, paleta escura rosa/roxo, menu lateral, feed 9:16 e painel de edição à direita. O CSS original está reproduzido em \`web-local/studio.css\`, com adaptações responsivas e quatro cartões de créditos.
+
+**Preview web Railway:** https://autoclips-studio-production.up.railway.app/
+
+**Status desse endereço:** interface de prévia, com edição local disponível. O login multiusuário e o Stripe **não estão operacionalmente habilitados** enquanto a API, o banco e os segredos corretos não forem configurados. O usuário não deve pagar até a validação completa em ambiente de teste.
+
+## Navegação e pagamento
+
+- Feed de cortes: prévia e edição em 3 colunas, controles de anterior/próximo, preparar publicação.
+- Minha biblioteca: seletor local, pasta autorizada, downloads diretos licitamente autorizados.
+- Contas e canais: login Supabase, workspaces, YouTube GIS.
+- Publicações: estado dos jobs, IDs e reconciliação, sem vídeo no servidor.
+- Planos e pagamentos: 100 créditos R$ 15,00; 250 R$ 37,50; 500 R$ 75,00; 1.000 R$ 150,00. Todos R$ 0,15 por publicação confirmada.
+- Quando a API informa HTTP 402 ou o saldo muda de positivo para zero, aparece modal de créditos esgotados e CTA para a área de pagamentos. A verificação do saldo não substitui controle transacional no backend.
+
+## Railway: serviço front-end
+
+O serviço \`autoclips-studio\` foi criado no projeto \`Autoclips\` na Railway, a partir da branch \`feat/browser-local-poc-20261122\`, com Dockerfile \`web-local/Dockerfile\`, porta 8080 e healthcheck \`/health\`.
+
+**Atenção:** o \`railway.json\` da branch de desenvolvimento foi ajustado para construir o front-end estático. O \`main\` continua com configuração para o antigo worker. Não mescle esse arquivo em \`main\` sem planejar a mudança do serviço antigo.
+
+Variáveis públicas do serviço web: \`API_URL\`, \`SUPABASE_URL\`, \`SUPABASE_PUBLISHABLE_KEY\` e \`GOOGLE_CLIENT_ID\`. Se alguma não estiver configurada, a aplicação inicia em preview e exibe um aviso. Nunca use chaves service_role/secret na interface.
+
+## Vercel: usar a mesma interface
+
+No painel Vercel, importe \`consecomclipcon-design/AutoClips-AI\`, selecione a branch do SaaS e defina **Root Directory: \`web-local\`**. O projeto deve ser Framework Preset: Other, com configuração \`web-local/vercel.json\`, que executa \`node build-vercel.mjs\` e publica \`dist\`. Configure as mesmas quatro variáveis públicas no Vercel (sem segredos). A Vercel publica somente HTML/CSS/JS; a API de metadados deve continuar separada da interface. Não implante o antigo Dockerfile Python na Vercel.
+
+---
+
 # AutoClips Studio — navegador e ZERO mídia no servidor
 
 ## Como abrir no computador

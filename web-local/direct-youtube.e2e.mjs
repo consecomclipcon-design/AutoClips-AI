@@ -128,35 +128,39 @@ try {
   const errors = [];
   page.on("pageerror", err => errors.push(err.message));
   await page.goto("http://127.0.0.1:8080/", { waitUntil: "domcontentloaded" });
-  await page.locator('[data-view="channels"]').first().click();
-  await page.locator("#view-channels details").first().evaluate(node => { node.open = true; });
-  await page.locator("#saasApi").fill("https://api.example.com");
-  await page.locator("#saasSupabase").fill("https://sample.supabase.co");
-  await page.locator("#saasPublishable").fill("sb_publishable_test");
-  await page.locator("#saasGoogleClientId").fill("123456789-test.apps.googleusercontent.com");
-  await page.locator("#saasEmail").fill("owner@example.com");
-  await page.locator("#saasPassword").fill("test-password");
-  await page.locator("#saasLogin").click();
+  await page.locator('[data-desktop-page="settings"]').first().click();
+  await page.evaluate(() => {
+    document.querySelector("#saasApi").value = "https://api.example.com";
+    document.querySelector("#saasSupabase").value = "https://sample.supabase.co";
+    document.querySelector("#saasPublishable").value = "sb_publishable_test";
+    document.querySelector("#saasGoogleClientId").value = "123456789-test.apps.googleusercontent.com";
+  });
+  await page.locator("#adLoginEmail").fill("owner@example.com");
+  await page.locator("#adLoginPass").fill("test-password");
+  await page.locator("#adSignin").click();
   await page.waitForFunction(() => !!document.querySelector("#saasChannel option"));
-  await page.locator('[data-view="studio"]').first().click();
+  await page.locator('[data-desktop-page="create"]').first().click();
 
   await page.locator("#inputFiles").setInputFiles("/tmp/autoclips-fixture.mp4");
   await page.waitForFunction(() => {
     const v = document.getElementById("source");
     return Number.isFinite(v.duration) && v.duration >= 3;
   });
-  await page.locator("#start").fill("0.2");
-  await page.locator("#end").fill("2.2");
-  await page.locator("#rights").check();
-  await page.locator("#export").click();
+  await page.locator("#adCutStart").fill("0.2");
+  await page.locator("#adCutEnd").fill("2.2");
+  await page.locator("#adEditRights").check();
+  await page.locator("#adExport").click();
   await page.waitForFunction(() =>
     document.getElementById("status")?.textContent.includes("Corte exportado localmente"), null, { timeout: 30000 });
 
-  await page.locator("#saasApprovalCheck").check();
-  await page.locator("#saasTitle").fill("Corte de teste autorizado");
-  await page.locator("#saasPrepare").click();
+  await page.locator('[data-desktop-page="approvals"]').first().click();
+  await page.locator("#adApprove").click();
+  await page.locator("#adRightsApproved").check();
+  await page.locator("#adPublishTitle").fill("Corte de teste autorizado");
+  await page.locator("#adApprovalConfirm").click();
   await page.waitForFunction(() => !document.querySelector("#saasPublish").disabled);
-  await page.locator("#saasPublish").click();
+  await page.locator("#adUploadDirect").waitFor({ state: "visible" });
+  await page.locator("#adUploadDirect").click();
   await page.waitForFunction(() =>
     document.getElementById("saasFeedback")?.textContent.includes("Publicado em modo privado"), null,
     { timeout: 20000 });
@@ -168,12 +172,12 @@ try {
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("autoclips:wallet", {
     detail: { wallet: { available: 0, reserved: 0, total_purchased: 100 }, jobs: [] }
   })));
-  await page.locator("#creditModal").waitFor({ state: "visible" });
-  assert.match(await page.locator("#creditModalTitle").innerText(), /créditos acabaram/i);
-  await page.locator("#creditModalBuy").click();
-  assert.equal(await page.locator("#view-payments").isVisible(), true);
-  assert.equal(await page.locator(".plan-card").count(), 4);
-  assert.equal(await page.locator("#paymentsCredits").innerText(), "0");
+  await page.locator("#adCreditPopup").waitFor({ state: "visible" });
+  assert.match(await page.locator("#adCreditPopupTitle").innerText(), /créditos acabaram/i);
+  await page.locator("#adCreditBuy").click();
+  assert.equal(await page.locator("#ad-billing").isVisible(), true);
+  assert.equal(await page.locator(".ad-plan").count(), 4);
+  assert.equal(await page.locator("#adCreditBalance").innerText(), "0");
   assert.deepEqual(errors, []);
   console.log("ZERO MEDIA PROVED (MOCK): bytes to Google:", calls.youtubeBinaryBytes,
     "bytes to AutoClips API:", calls.saasBinaryBytes);

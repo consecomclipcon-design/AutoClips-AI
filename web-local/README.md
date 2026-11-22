@@ -1,3 +1,26 @@
+# Layout desktop de referência — telas fornecidas em 22/11/2026
+
+A interface pública do Studio agora é \`desktop-ui.css\` + \`desktop-ui.js\` sobre o editor local existente (\`app.js\`), respeitando a referência visual de sete telas do aplicativo desktop:
+
+1. Visão geral: cabeçalho, desempenho, canais, Top 5 e público
+2. Criar cortes: título com gradiente rosa, importação autorizada, execução no navegador e editor local
+3. Aprovações: player vertical 9:16, velocidade, aprovar/comentar/rejeitar, ajuste de segundos e envio direto ao YouTube
+4. Fila de produção: originais selecionados localmente
+5. Fila de postagem: canais e status reais de publicação
+6. Armazenamento: pasta explicitamente autorizada e cota do navegador; **nunca inventa o endereço E:\ do desktop**
+7. Configurações: espaços/contas, canais, permissões e informação de revisão móvel
+8. **Novo:** Planos e pagamentos: 100, 250, 500 ou 1.000 créditos; R$ 0,15 por publicação confirmada; pop-up de recarga quando faltar saldo
+
+A reprodução é uma adaptação visual de **capturas de tela**; não é uma cópia 1:1 do código desktop. O app Electron e seus dados/serviços internos não estavam incluídos no repositório conectado. O módulo de IA que cria cortes automaticamente, Analytics real e pareamento Android por APK/QR ainda não foram portados ao SaaS. A versão web não pode ler disco sem autorização, nem baixar mídia de páginas YouTube usando a API oficial. A interface só exibe dados reais que vierem das APIs conectadas.
+
+### Produção na Railway
+O serviço \`autoclips-studio\` exibe as telas em https://autoclips-studio-production.up.railway.app/ usando apenas Nginx para HTML/CSS/JS. A mídia nunca chega à Railway. Faça homologação do OAuth, Stripe, banco de dados e publicação antes de abrir para clientes pagantes.
+
+### Mesmo layout na Vercel
+Em novo projeto Vercel, use **Root Directory \`web-local\`**, preset \`Other\`, build \`node build-vercel.mjs\`, output \`dist\`. O script copia \`desktop-ui.css\`, \`desktop-ui.js\` e os arquivos do editor, gerando somente chaves públicas em \`saas-config.json\`.
+
+---
+
 # AutoClips Studio — interface original + planos e pagamentos
 
 A versão SaaS usa a **mesma base visual de \`dashboard.html\` da versão original**: logo ▶ AutoClips Studio, paleta escura rosa/roxo, menu lateral, feed 9:16 e painel de edição à direita. O CSS original está reproduzido em \`web-local/studio.css\`, com adaptações responsivas e quatro cartões de créditos.

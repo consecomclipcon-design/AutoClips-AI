@@ -500,5 +500,9 @@ e("saasLogout").onclick = () => {
     if (conf.supabaseUrl) ui.supabase.value = conf.supabaseUrl;
     if (conf.supabasePublishableKey) ui.publicKey.value = conf.supabasePublishableKey;
     if (conf.googleClientId) ui.googleClientId.value = conf.googleClientId;
-  } catch {}
+    if (!conf.apiUrl || !conf.supabaseUrl || !conf.supabasePublishableKey || !conf.googleClientId) {
+      feedback("Modo de demonstração: edição local disponível. Contas e pagamentos aguardam configuração no servidor.");
+      window.dispatchEvent(new Event("autoclips:preview-mode"));
+    }
+  } catch { feedback("Editor local disponível. Configure os dados públicos do SaaS para ativar contas e pagamentos."); }
 })();

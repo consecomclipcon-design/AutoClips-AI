@@ -495,6 +495,7 @@ def cancel_job(job_id: UUID, body: OrgInput,
                user: UUID = Depends(current_user), conn=Depends(db_dep)):
     require_member(conn, body.org_id, user, ("owner", "admin", "editor"))
     with conn.transaction():
+        conn.execute("select org_id from autoclips_saas.wallets where org_id=%s for update", (body.org_id,))
         job = conn.execute(
             "select * from autoclips_saas.jobs where org_id=%s and id=%s for update",
             (body.org_id, job_id),

@@ -36,7 +36,15 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 <h2>1. Escolher originais autorizados</h2>
 <div class="controls"><button id="folder" class="secondary">Escolher pasta</button><button id="choose" class="secondary">Escolher vídeos</button></div>
 <input id="inputFiles" type="file" accept="video/*,.mp4,.mov,.mkv,.webm" multiple hidden>
-<div class="notice" id="permissions">Acesso somente aos arquivos que você selecionar. Pasta indisponível? Use “Escolher vídeos”.</div>
+<div class="notice" id="permissions">Acesso somente aos arquivos que você selecionar ou baixar diretamente no seu computador. Pasta indisponível? Use “Escolher vídeos”.</div>
+<h3 style="font-size:14px;margin-top:20px">Download autorizado diretamente no seu computador</h3>
+<p class="muted">Informe um link HTTPS direto de um arquivo próprio ou licenciado. Seu navegador baixa e salva na pasta que você autorizar, sem usar o AutoClips como proxy. URLs de vídeos comuns do YouTube não são links de mídia para download.</p>
+<label for="sourceUrl">URL direta de mídia autorizada (HTTPS, CORS permitido)</label>
+<input id="sourceUrl" type="url" placeholder="https://meu-servidor-autorizado.com/video.mp4">
+<label><input type="checkbox" id="downloadRights">Confirmo que tenho permissão para baixar esta mídia.</label>
+<div class="controls"><button type="button" id="downloadSource" class="secondary">Baixar direto para meu computador</button></div>
+<progress id="downloadProgress" value="0" max="100"></progress><div class="status" id="downloadStatus" role="status"></div>
+
 <div id="files" aria-label="Fila de arquivos"><p>Nenhum vídeo selecionado.</p></div>
 <button id="restore" class="secondary" hidden>Reabrir arquivos autorizados</button>
 </section>

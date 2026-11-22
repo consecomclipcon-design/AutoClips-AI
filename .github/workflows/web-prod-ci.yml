@@ -36,8 +36,11 @@ jobs:
           test -s dist/index.html
           test -s dist/studio.css
           test -s dist/studio-ui.js
+          test -s dist/desktop-ui.css
+          test -s dist/desktop-ui.js
           test -s dist/saas-config.json
           node --check dist/studio-ui.js
+          node --check dist/desktop-ui.js
           node -e 'const x=require("./dist/saas-config.json");if(x.apiUrl || x.googleClientId) process.exit(1)'
       - name: Build static Docker image
         run: docker build --file web-local/Dockerfile --tag autoclips-zero-media:ci .

@@ -272,6 +272,9 @@ async function startExport() {
   el("export").disabled = true; el("progress").value = 0; el("save").disabled = true;
   el("output").replaceChildren(); state.output = null;
   try {
+    const audioContext = state.audioContext || new AudioContext();
+    state.audioContext = audioContext;
+    await audioContext.resume();
     configureWorker();
     const photo = el("photo").files?.[0];
     if (photo) {
@@ -284,8 +287,6 @@ async function startExport() {
     video.pause();
     await seekTo(start);
     await renderFrame();
-    const audioContext = state.audioContext || new AudioContext();
-    state.audioContext = audioContext;
     if (!state.audioSource) {
       state.audioSource = audioContext.createMediaElementSource(video);
       state.audioSource.connect(audioContext.destination);

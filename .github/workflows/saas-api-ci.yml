@@ -40,7 +40,7 @@ jobs:
           node-version: '22'
       - name: Compile Python and browser connector
         run: |
-          python -m py_compile saas-api/core.py saas-api/main.py saas-api/worker.py
+          python -m py_compile saas-api/core.py saas-api/main.py
           node --check web-local/saas.js
           node --check web-local/review.js
       - name: Install pinned dependencies

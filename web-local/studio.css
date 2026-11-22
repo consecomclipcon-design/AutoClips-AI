@@ -172,3 +172,27 @@ fieldset{margin:0;padding:0;border:0}fieldset[disabled]{opacity:.55}
  #topCredits{display:inline!important;font-size:12px}
  .page-head{align-items:start}
 }
+
+/* Tab expansion preserves the original Studio column system. */
+.wrap.wide-mode{grid-template-columns:235px minmax(0,1fr)}
+.rightbar[data-hidden="true"]{display:none!important}
+@media(max-width:990px){.wrap.wide-mode{grid-template-columns:210px minmax(0,1fr)}}
+@media(max-width:690px){.wrap.wide-mode{display:block}}
+.section-card .controls{margin-top:12px}
+.section-card select{min-height:42px}
+.section-card h2{line-height:1.35}
+#view-channels>.section-card label{font-size:12px}
+#view-channels>.section-card input,#view-channels>.section-card textarea,
+#view-channels>.section-card select{min-height:42px;border:1px solid #383d4d;background:#181c28;color:#fff;border-radius:11px;padding:10px 12px;max-width:100%}
+#view-channels>.section-card .controls button,
+#view-history>.section-card button{background:#262a39;color:#fff;border:1px solid #45475c;border-radius:11px;padding:11px 15px}
+#view-channels>.section-card .controls button:hover{background:#343a50}
+#view-channels>.section-card .field-row{gap:11px}
+#view-channels>.section-card .notice{margin:12px 0}
+#view-channels>.section-card .saas-job{margin-top:10px}
+#view-payments .field-row>div{min-width:160px}
+#view-payments input[type=number]{display:block;width:100%;background:#181c28;color:#fff;border:1px solid #35394a;border-radius:12px;padding:12px}
+#view-payments .field-row button{margin:0}
+#view-history .section-card input,#view-history .section-card select{width:100%;background:#181c28;color:#fff;border:1px solid #35394a;border-radius:12px;padding:11px}
+#view-history .section-card p{font-size:12px}
+@media(max-width:690px){.wrap.wide-mode .workspace{width:100%}.wrap.wide-mode .sidebar{display:none}}

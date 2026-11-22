@@ -1,24 +1,19 @@
 """Infrastructure and exact-once credit ledger. Never import secrets into browser code."""
 from __future__ import annotations
 
-import hashlib
 import os
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from uuid import UUID
 
 import httpx
 import psycopg
-from cryptography.fernet import Fernet
-from fastapi import Depends, Header, HTTPException
+from fastapi import Header, HTTPException
 from psycopg.rows import dict_row
 
 SCHEMA = "autoclips_saas"
 CREDIT_PRICE_CENTS = 15
 MAX_CREDITS_PER_CHECKOUT = 100_000
-YOUTUBE_READ_SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
-YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
-YOUTUBE_SCOPES = [YOUTUBE_READ_SCOPE, YOUTUBE_UPLOAD_SCOPE]
+# Google token model: transient access tokens stay in browser memory.
 
 
 def config(key: str) -> str:
@@ -26,18 +21,6 @@ def config(key: str) -> str:
     if not value:
         raise RuntimeError(f"Environment variable {key} is required")
     return value
-
-
-def encrypt_token(value: str) -> str:
-    return Fernet(config("TOKEN_FERNET_KEY").encode()).encrypt(value.encode()).decode()
-
-
-def decrypt_token(value: str) -> str:
-    return Fernet(config("TOKEN_FERNET_KEY").encode()).decrypt(value.encode()).decode()
-
-
-def digest_token(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()
 
 
 def iso_now() -> datetime:

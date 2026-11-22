@@ -21,6 +21,8 @@ jobs:
         run: |
           node --check web-local/app.js
           node --check web-local/render.worker.js
+          node --check web-local/saas.js
+          node --check web-local/review.js
       - name: Serve isolated folder (no production service)
         run: |
           python3 -m http.server 8080 --bind 127.0.0.1 --directory web-local >/tmp/web-local.log 2>&1 &
@@ -31,3 +33,4 @@ jobs:
           grep -q 'AutoClips' /tmp/autoclips-local.html
           curl -fsS http://127.0.0.1:8080/app.js -o /dev/null
           curl -fsS http://127.0.0.1:8080/render.worker.js -o /dev/null
+          curl -fsS http://127.0.0.1:8080/review.html -o /dev/null

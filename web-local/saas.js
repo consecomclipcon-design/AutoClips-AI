@@ -1,273 +1,455 @@
-/* Optional AutoClips SaaS interface; does not send original source files.
-   Secrets remain on server. Supabase publishable key is public; password/token lives in memory only. */
-const e = id => document.getElementById(id);
+/* AutoClips zero-media browser client.
+   NEVER send original video, final MP4, YouTube OAuth token or resumable URL to our storage.
+   Media bytes go only from this browser to Google's YouTube upload API.
+   The SaaS API receives JSON metadata and transient access token for channel verification.
+*/
+const e = (id) => document.getElementById(id);
 const ui = {
   api: e("saasApi"), supabase: e("saasSupabase"), publicKey: e("saasPublishable"),
-  email: e("saasEmail"), password: e("saasPassword"), feedback: e("saasFeedback"),
-  org: e("saasOrg"), orgName: e("saasOrgName"), channel: e("saasChannel"),
-  status: e("saasStatus"), credits: e("saasCredits"), count: e("saasBuyCount"),
-  title: e("saasTitle"), description: e("saasDescription"), sourceId: e("saasSourceId"), basis: e("saasRightsBasis"), sourceList: e("saasSourceList"), discovery: e("saasDiscoverResults"),
-  upload: e("saasUpload"), approve: e("saasApprove")
+  googleClientId: e("saasGoogleClientId"), email: e("saasEmail"), password: e("saasPassword"),
+  feedback: e("saasFeedback"), org: e("saasOrg"), orgName: e("saasOrgName"),
+  channel: e("saasChannel"), status: e("saasStatus"), credits: e("saasCredits"),
+  count: e("saasBuyCount"), title: e("saasTitle"), description: e("saasDescription"),
+  sourceId: e("saasSourceId"), basis: e("saasRightsBasis"),
+  sourceList: e("saasSourceList"), discovery: e("saasDiscoverResults"),
+  prepare: e("saasPrepare"), publish: e("saasPublish"),
+  progress: e("saasPublishProgress")
 };
-let token = "", userId = "", lastJobId = null, configs = null;
-const formatCredits = amount => Number(amount || 0).toLocaleString("pt-BR");
-function feedback(message) { ui.feedback.textContent = message; }
-function baseUrl(input) {
-  try {
-    const url = new URL(input.value.trim());
-    const local = url.hostname === "127.0.0.1" || url.hostname === "localhost";
-    if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) throw Error();
-    return url.origin + url.pathname.replace(/\/+$/, "");
-  } catch { throw Error("Use URL HTTPS ou localhost para o backend"); }
-}
-function apiUrl() { return baseUrl(ui.api); }
-function authUrl() { return baseUrl(ui.supabase); }
-async function request(path, options = {}) {
-  if (!token) throw Error("Entre na conta antes de continuar");
-  const response = await fetch(apiUrl() + path, {
-    ...options,
-    headers: { "Authorization": "Bearer " + token,
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(options.headers || {}) }
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw Error(data.detail || data.message || "HTTP " + response.status);
-  return data;
+const YOUTUBE_READ = "https://www.googleapis.com/auth/youtube.readonly";
+const YOUTUBE_UPLOAD = "https://www.googleapis.com/auth/youtube.upload";
+let session = null, lastPrepared = null, channels = new Map();
+let googleAccess = null;
+const fmt = n => Number(n || 0).toLocaleString("pt-BR");
+function feedback(message) { ui.feedback.textContent = String(message); }
+function safeUrl(element) {
+  let u;
+  try { u = new URL(element.value.trim()); } catch { throw Error("Informe uma URL válida"); }
+  const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) {
+    throw Error("A API e autenticação devem usar HTTPS fora do localhost.");
+  }
+  return u.origin + u.pathname.replace(/\/+$/, "");
 }
 function orgId() {
-  if (!ui.org.value) throw Error("Selecione uma organização");
+  if (!ui.org.value) throw Error("Selecione um espaço de trabalho.");
   return ui.org.value;
 }
+async function api(path, opts = {}) {
+  if (!session) throw Error("Entre na sua conta AutoClips primeiro.");
+  const headers = { Authorization: "Bearer " + session, ...(opts.headers || {}) };
+  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  const response = await fetch(safeUrl(ui.api) + path, { ...opts, headers });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw Error(result.detail || "Erro HTTP " + response.status);
+  return result;
+}
 async function loadOrgs() {
-  const orgs = await request("/v1/organizations");
+  const rows = await api("/v1/organizations");
+  const oldValue = ui.org.value;
   ui.org.replaceChildren();
-  for (const org of orgs) {
-    const opt = document.createElement("option");
-    opt.value = org.id; opt.textContent = org.name + " (" + org.role + ")";
-    ui.org.append(opt);
+  for (const org of rows) {
+    const option = document.createElement("option");
+    option.value = org.id; option.textContent = org.name + " (" + org.role + ")";
+    ui.org.append(option);
   }
-  const previous = sessionStorage.getItem("autoclips_saas_org");
-  if (previous && orgs.some(o => o.id === previous)) ui.org.value = previous;
+  if (rows.some(org => org.id === oldValue)) ui.org.value = oldValue;
   await refreshWorkspace();
 }
 async function refreshWorkspace() {
   if (!ui.org.value) {
-    ui.status.textContent = "Crie uma organização para começar."; return;
+    ui.credits.textContent = "Crie um espaço de trabalho.";
+    ui.status.replaceChildren(); return;
   }
-  sessionStorage.setItem("autoclips_saas_org", ui.org.value);
   const org = encodeURIComponent(orgId());
-  const [wallet, channels, jobs] = await Promise.all([
-    request("/v1/wallet?org_id=" + org),
-    request("/v1/channels?org_id=" + org),
-    request("/v1/jobs?org_id=" + org),
+  const [wallet, linked, jobs, sources] = await Promise.all([
+    api("/v1/wallet?org_id=" + org),
+    api("/v1/channels?org_id=" + org),
+    api("/v1/jobs?org_id=" + org),
+    api("/v1/sources?org_id=" + org),
   ]);
-  ui.credits.textContent = formatCredits(wallet.available) + " disponíveis · " +
-    formatCredits(wallet.reserved) + " reservados";
+  channels = new Map(linked.filter(c => c.active).map(c => [c.id, c]));
+  ui.credits.textContent = fmt(wallet.available) + " disponíveis · " + fmt(wallet.reserved) + " reservados";
+  const selectedChannel = ui.channel.value, selectedSource = ui.sourceList.value;
   ui.channel.replaceChildren();
-  for (const channel of channels.filter(c => c.active)) {
+  for (const channel of channels.values()) {
     const opt = document.createElement("option");
-    opt.value = channel.id;
-    opt.textContent = channel.title + " · " + channel.youtube_channel_id;
+    opt.value = channel.id; opt.textContent = channel.title + " · " + channel.youtube_channel_id;
     ui.channel.append(opt);
   }
-  const sources = await request("/v1/sources?org_id=" + org);
+  if (channels.has(selectedChannel)) ui.channel.value = selectedChannel;
   ui.sourceList.replaceChildren();
   for (const source of sources) {
     const opt = document.createElement("option");
     opt.value = source.id; opt.textContent = source.youtube_source_id;
     ui.sourceList.append(opt);
   }
+  if (sources.some(x => x.id === selectedSource)) ui.sourceList.value = selectedSource;
   ui.status.replaceChildren();
-  if (!jobs.length) {
-    ui.status.textContent = "Nenhuma publicação na fila.";
-  } else for (const job of jobs.slice(0, 20)) {
-    const item = document.createElement("div");
-    item.className = "saas-job";
+  if (!jobs.length) ui.status.textContent = "Nenhuma publicação registrada.";
+  for (const job of jobs.slice(0, 20)) {
+    const div = document.createElement("div"); div.className = "saas-job";
     const strong = document.createElement("strong");
-    strong.textContent = job.title + " — " + job.status;
-    const small = document.createElement("small");
-    small.textContent = job.youtube_video_id ?
-      "ID YouTube: " + job.youtube_video_id : "Crédito: " + job.credit_state;
-    item.append(strong, small); ui.status.append(item);
+    strong.textContent = job.title + " · " + job.status;
+    const details = document.createElement("small");
+    details.textContent = (channels.get(job.channel_id)?.title || "Canal") +
+      " · crédito " + job.credit_state +
+      (job.youtube_video_id ? " · YouTube ID " + job.youtube_video_id : "");
+    div.append(strong, details); ui.status.append(div);
   }
+}
+function ensureGoogle(scopeList) {
+  const clientId = ui.googleClientId.value.trim();
+  if (!/^[0-9]+-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(clientId))
+    throw Error("Informe o Google OAuth Client ID público válido.");
+  if (!window.google?.accounts?.oauth2?.initTokenClient)
+    throw Error("Biblioteca oficial de autorização do Google indisponível. Reabra a página com internet.");
+  return new Promise((resolve, reject) => {
+    const scopes = scopeList.join(" ");
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: scopes,
+      callback: response => {
+        if (response.error || !response.access_token) {
+          reject(Error("Google não concedeu autorização: " + (response.error || "sem acesso")));
+          return;
+        }
+        if (!google.accounts.oauth2.hasGrantedAllScopes(response, ...scopeList)) {
+          reject(Error("Google não concedeu todos os escopos exigidos."));
+          return;
+        }
+        googleAccess = { token: response.access_token,
+          expiresAt: Date.now() + Math.max(0, Number(response.expires_in || 3600) - 60) * 1000,
+          scopes: response.scope || "" };
+        resolve(googleAccess.token);
+      },
+      error_callback: () => reject(Error("Autorização do Google cancelada ou bloqueada pelo navegador.")),
+    });
+    // MUST be invoked synchronously from a real button click.
+    tokenClient.requestAccessToken({ prompt: "consent" });
+  });
+}
+function activeGoogleToken(required) {
+  if (!googleAccess || googleAccess.expiresAt <= Date.now())
+    throw Error("Sua autorização Google expirou. Use o botão do Google novamente.");
+  for (const scope of required) {
+    if (!googleAccess.scopes.split(/\s+/).includes(scope)) throw Error("Permissão Google insuficiente.");
+  }
+  return googleAccess.token;
+}
+async function youtubeGet(resource, params, token) {
+  const endpoint = new URL("https://www.googleapis.com/youtube/v3/" + resource);
+  for (const [k, v] of Object.entries(params)) endpoint.searchParams.set(k, String(v));
+  const response = await fetch(endpoint.toString(), {
+    headers: { Authorization: "Bearer " + token },
+  });
+  if (!response.ok) throw Error("Google API retornou HTTP " + response.status);
+  return response.json();
+}
+async function selectGoogleChannel(token) {
+  const data = await youtubeGet("channels", { part: "snippet", mine: "true", maxResults: 50 }, token);
+  const rows = (data.items || []).filter(x => /^UC[A-Za-z0-9_-]{22}$/.test(x.id));
+  if (!rows.length) throw Error("Nenhum canal disponível nesta autorização Google.");
+  // Authorization can represent just one Brand Account/channel, depending on user's selection.
+  // Never guess destination from the user's previously connected channels.
+  return rows;
 }
 e("saasLogin").onclick = async () => {
   try {
-    if (!ui.email.value || !ui.password.value) throw Error("Informe e-mail e senha");
-    const response = await fetch(authUrl() + "/auth/v1/token?grant_type=password", {
+    const response = await fetch(safeUrl(ui.supabase) + "/auth/v1/token?grant_type=password", {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: ui.publicKey.value.trim() },
-      body: JSON.stringify({ email: ui.email.value.trim(), password: ui.password.value })
+      body: JSON.stringify({ email: ui.email.value.trim(), password: ui.password.value }),
     });
     const data = await response.json();
-    if (!response.ok || !data.access_token) throw Error(data.msg || data.error_description || "Login não autorizado");
-    token = data.access_token;
-    userId = data.user?.id || "";
+    if (!response.ok || !data.access_token) throw Error(data.msg || "Credenciais inválidas");
+    session = data.access_token;
     ui.password.value = "";
-    feedback("Conta autenticada. A sessão fica somente na memória da aba.");
+    lastPrepared = null; ui.publish.disabled = true;
+    feedback("Autenticado. Sua sessão fica somente na memória desta aba.");
     await loadOrgs();
-  } catch (error) { feedback("Login: " + error.message); }
+  } catch (err) { feedback("Login: " + err.message); }
 };
 e("saasSignup").onclick = async () => {
   try {
-    const response = await fetch(authUrl() + "/auth/v1/signup", {
+    const response = await fetch(safeUrl(ui.supabase) + "/auth/v1/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: ui.publicKey.value.trim() },
-      body: JSON.stringify({ email: ui.email.value.trim(), password: ui.password.value })
+      body: JSON.stringify({ email: ui.email.value.trim(), password: ui.password.value }),
     });
-    const data = await response.json();
-    if (!response.ok) throw Error(data.msg || data.error_description || "Cadastro não autorizado");
+    const result = await response.json();
+    if (!response.ok) throw Error(result.msg || "Cadastro indisponível.");
     ui.password.value = "";
-    feedback("Cadastro recebido. Confirme seu e-mail se a verificação estiver ativada, depois entre.");
-  } catch (error) { feedback("Cadastro: " + error.message); }
+    feedback("Cadastro recebido. Verifique o e-mail e depois entre.");
+  } catch (err) { feedback("Cadastro: " + err.message); }
 };
 e("saasCreateOrg").onclick = async () => {
   try {
-    if (!ui.orgName.value.trim()) throw Error("Informe o nome do espaço de trabalho");
-    const org = await request("/v1/organizations", {
-      method: "POST", body: JSON.stringify({ name: ui.orgName.value.trim() })
+    const org = await api("/v1/organizations", {
+      method: "POST", body: JSON.stringify({ name: ui.orgName.value.trim() }),
     });
-    sessionStorage.setItem("autoclips_saas_org", org.id);
-    await loadOrgs();
+    await loadOrgs(); ui.org.value = org.id; await refreshWorkspace();
     feedback("Espaço de trabalho criado.");
-  } catch (error) { feedback(error.message); }
+  } catch (err) { feedback(err.message); }
+};
+e("saasRefresh").onclick = async () => {
+  try { await refreshWorkspace(); feedback("Metadados atualizados; nenhum vídeo foi transferido ao SaaS."); }
+  catch (err) { feedback(err.message); }
+};
+ui.org.onchange = () => {
+  lastPrepared = null; ui.publish.disabled = true;
+  refreshWorkspace().catch(err => feedback(err.message));
 };
 e("saasConnect").onclick = async () => {
   try {
-    const data = await request("/v1/channels/connect", {
-      method: "POST", body: JSON.stringify({ org_id: orgId() })
-    });
-    window.location.assign(data.authorization_url);
-  } catch (error) { feedback(error.message); }
-};
-e("saasRefresh").onclick = async () => {
-  try { await refreshWorkspace(); feedback("Dados atualizados."); }
-  catch (error) { feedback(error.message); }
-};
-ui.org.onchange = async () => {
-  try { await refreshWorkspace(); } catch (error) { feedback(error.message); }
+    if (!session || !ui.org.value) throw Error("Entre na conta e escolha o espaço de trabalho.");
+    const token = await ensureGoogle([YOUTUBE_READ]);
+    const googleChannels = await selectGoogleChannel(token);
+    for (const channel of googleChannels) {
+      await api("/v1/channels/register", {
+        method: "POST", headers: { "X-YouTube-Access-Token": token },
+        body: JSON.stringify({ org_id: orgId(), youtube_channel_id: channel.id }),
+      });
+    }
+    await refreshWorkspace();
+    feedback("Canal(is) registrado(s). Nenhum token Google permanente foi armazenado no AutoClips.");
+  } catch (err) { feedback("Google: " + err.message); }
 };
 e("saasRegisterSource").onclick = async () => {
   try {
     const channelId = ui.sourceId.value.trim();
-    if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId)) throw Error("Informe um ID de canal UC... válido.");
-    if (ui.basis.value.trim().length < 3) throw Error("Descreva a base de autorização de uso.");
-    await request("/v1/sources", {
+    if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId)) throw Error("Informe um ID UC... válido.");
+    if (ui.basis.value.trim().length < 3) throw Error("Descreva a autorização do conteúdo.");
+    await api("/v1/sources", {
       method: "POST",
-      body: JSON.stringify({
-        org_id: orgId(), youtube_channel_id: channelId,
-        authorization_basis: ui.basis.value.trim()
-      })
+      body: JSON.stringify({ org_id: orgId(), youtube_channel_id: channelId,
+        authorization_basis: ui.basis.value.trim() }),
     });
     await refreshWorkspace();
-    feedback("Origem cadastrada. Somente os IDs e metadados serão descobertos.");
-  } catch (error) { feedback(error.message); }
+    feedback("Fonte registrada. A descoberta de metadados não autoriza baixar conteúdo.");
+  } catch (err) { feedback(err.message); }
 };
 e("saasDiscover").onclick = async () => {
   try {
-    if (!ui.sourceList.value) throw Error("Cadastre uma origem.");
-    if (!ui.channel.value) throw Error("Conecte um canal Google para consultar metadados.");
-    const qs = new URLSearchParams({ org_id: orgId(), connected_channel_id: ui.channel.value });
-    const result = await request("/v1/sources/" + ui.sourceList.value + "/discover?" + qs.toString(), {
-      method: "POST"
+    if (!ui.sourceList.value) throw Error("Cadastre uma origem primeiro.");
+    if (!session) throw Error("Entre na conta.");
+    // Obtaining a token here requires direct Google consent user gesture.
+    const token = await ensureGoogle([YOUTUBE_READ]);
+    const qs = new URLSearchParams({ org_id: orgId() });
+    const found = await api("/v1/sources/" + ui.sourceList.value + "/discover?" + qs.toString(), {
+      method: "POST", headers: { "X-YouTube-Access-Token": token },
     });
-    const rows = await request("/v1/sources/" + ui.sourceList.value +
+    const items = await api("/v1/sources/" + ui.sourceList.value +
       "/videos?org_id=" + encodeURIComponent(orgId()));
     ui.discovery.replaceChildren();
-    for (const video of rows.slice(0, 15)) {
+    for (const item of items.slice(0, 15)) {
       const div = document.createElement("div");
-      div.textContent = video.title + " · " + video.youtube_video_id + " · aguardando original autorizado";
+      div.textContent = item.title + " · " + item.youtube_video_id +
+        " · aguardando arquivo autorizado do cliente";
       ui.discovery.append(div);
     }
-    feedback("Encontrados " + result.discovered + " IDs. Nenhum vídeo original foi baixado.");
-  } catch (error) { feedback("Descoberta: " + error.message); }
+    feedback("Descobertos " + found.discovered + " IDs, sem fazer download dos vídeos.");
+  } catch (err) { feedback("Descoberta: " + err.message); }
 };
 e("saasCheckout").onclick = async () => {
   try {
     const credits = Number(ui.count.value);
-    if (!Number.isInteger(credits) || credits < 100 || credits > 100000)
-      throw Error("Pacote permitido: 100 a 100.000 créditos");
-    const data = await request("/v1/billing/checkout", {
-      method: "POST", body: JSON.stringify({ org_id: orgId(), credits })
+    if (!Number.isInteger(credits) || credits < 100 || credits > 100000) throw Error("Escolha entre 100 e 100.000 créditos.");
+    const result = await api("/v1/billing/checkout", {
+      method: "POST", body: JSON.stringify({ org_id: orgId(), credits }),
     });
-    window.location.assign(data.checkout_url);
-  } catch (error) { feedback(error.message); }
+    location.assign(result.checkout_url);
+  } catch (err) { feedback("Pagamento: " + err.message); }
 };
-function localExport() {
-  const result = window.autoclipsLocalGetExport?.();
-  if (!result?.blob || result.blob.size < 1024) throw Error("Gere um corte MP4 neste editor antes de enviar");
-  if (result.blob.type !== "video/mp4" || !result.name.endsWith(".mp4"))
-    throw Error("Seu navegador exportou WebM. Esta versão sincroniza somente MP4 final; use navegador compatível.");
-  if (result.blob.size > 256 * 1024 * 1024)
-    throw Error("Arquivo acima de 256 MB: upload local grande ainda não homologado.");
+function getLocalExport() {
+  const output = window.autoclipsLocalGetExport?.();
+  if (!output?.blob || output.blob.size < 1024) throw Error("Gere o corte no editor primeiro.");
+  if (output.blob.type !== "video/mp4" && output.blob.type !== "video/webm") {
+    throw Error("Formato não suportado para envio direto ao YouTube.");
+  }
+  if (output.blob.size > 256 * 1024 * 1024) {
+    throw Error("MVP limitado a 256 MB por corte. Salve localmente e tente outro formato/tamanho.");
+  }
+  return output;
+}
+function shaHex(buffer) {
+  return Array.from(new Uint8Array(buffer), item => item.toString(16).padStart(2, "0")).join("");
+}
+ui.prepare.onclick = async () => {
+  ui.prepare.disabled = true;
+  try {
+    const output = getLocalExport();
+    if (!e("saasApprovalCheck").checked) throw Error("Revise a prévia e confirme direitos e publicação privada.");
+    const channel = channels.get(ui.channel.value);
+    if (!channel) throw Error("Conecte um canal de destino.");
+    feedback("Calculando assinatura do corte LOCAL, sem enviar bytes ao SaaS.");
+    const sha = shaHex(await crypto.subtle.digest("SHA-256", await output.blob.arrayBuffer()));
+    const clientKey = "sha256:" + sha + ":channel:" + channel.youtube_channel_id;
+    const job = await api("/v1/jobs", {
+      method: "POST", body: JSON.stringify({
+        org_id: orgId(), channel_id: channel.id, client_key: clientKey,
+        sha256: sha, size_bytes: output.blob.size,
+        title: (ui.title.value.trim() || output.name).slice(0, 100),
+        description: ui.description.value.slice(0, 5000),
+      }),
+    });
+    if (job.status === "published" || job.status === "uploading" ||
+        job.status === "needs_reconciliation" || job.status === "cancelled") {
+      throw Error("Esta publicação já está em estado " + job.status +
+        ". O envio duplicado foi bloqueado; consulte histórico/reconciliação.");
+    }
+    const reserved = await api("/v1/jobs/" + job.id + "/approve", {
+      method: "POST",
+      body: JSON.stringify({ org_id: orgId(), rights_confirmed: true, visibility: "private" }),
+    });
+    lastPrepared = { jobId: job.id, blob: output.blob, mime: output.blob.type, channel };
+    ui.publish.disabled = false;
+    await refreshWorkspace();
+    feedback("1 crédito reservado. Clique em 'Enviar diretamente ao YouTube' para consentir no Google.");
+  } catch (err) { feedback("Preparação: " + err.message); }
+  finally { ui.prepare.disabled = false; }
+};
+
+function safeResumableUrl(url) {
+  const u = new URL(url);
+  if (u.protocol !== "https:" || u.hostname !== "www.googleapis.com" ||
+      !u.pathname.startsWith("/upload/youtube/v3/videos")) {
+    throw Error("Sessão do YouTube inválida ou destino inseguro.");
+  }
+  return u.toString();
+}
+async function initiateYoutubeUpload(blob, token, title, description) {
+  const endpoint = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": blob.type,
+      "X-Upload-Content-Length": String(blob.size),
+    },
+    body: JSON.stringify({
+      snippet: { title, description },
+      status: { privacyStatus: "private" },
+    }),
+  });
+  if (!response.ok) throw Error("YouTube recusou iniciar upload: HTTP " + response.status);
+  const location = response.headers.get("Location");
+  if (!location) throw Error("A resposta CORS do YouTube não expôs a sessão resumível.");
+  return safeResumableUrl(location);
+}
+async function resumeYoutubeUpload(sessionUrl, blob, token, currentResponse = null) {
+  let response = currentResponse;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (!response || response.status !== 308) {
+      response = await fetch(sessionUrl, {
+        method: "PUT",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Range": "bytes */" + blob.size,
+        },
+      });
+    }
+    if (response.status === 200 || response.status === 201) return response.json();
+    if (response.status !== 308) throw Error("Upload incerto: HTTP " + response.status);
+    const range = response.headers.get("Range") || "";
+    const match = /^bytes=0-(\d+)$/.exec(range);
+    const offset = match ? Number(match[1]) + 1 : 0;
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset >= blob.size) {
+      throw Error("YouTube retornou deslocamento inválido; verificar manualmente.");
+    }
+    feedback("Retomando envio ao YouTube pelo mesmo identificador de sessão: " +
+      Math.round((offset / blob.size) * 100) + "%");
+    response = await fetch(sessionUrl, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": blob.type,
+        "Content-Range": "bytes " + offset + "-" + (blob.size - 1) + "/" + blob.size,
+      },
+      body: blob.slice(offset),
+    });
+    if (response.status === 200 || response.status === 201) return response.json();
+  }
+  throw Error("Envio ainda incerto após tentativa limitada de retomada.");
+}
+async function sendDirectToYoutube(prepared, token, title, description) {
+  // This function is intentionally the ONLY media network path in the SaaS browser client.
+  // No fetch to our API is ever made with prepared.blob as body.
+  const sessionUrl = await initiateYoutubeUpload(prepared.blob, token, title, description);
+  ui.progress.value = 8;
+  const uploadResponse = await fetch(sessionUrl, {
+    method: "PUT",
+    headers: { Authorization: "Bearer " + token, "Content-Type": prepared.mime },
+    body: prepared.blob,
+  });
+  if (uploadResponse.status === 200 || uploadResponse.status === 201) {
+    ui.progress.value = 100;
+    return uploadResponse.json();
+  }
+  const result = await resumeYoutubeUpload(sessionUrl, prepared.blob, token, uploadResponse);
+  ui.progress.value = 100;
   return result;
 }
-function hex(bytes) {
-  return Array.from(new Uint8Array(bytes), n => n.toString(16).padStart(2, "0")).join("");
-}
-ui.upload.onclick = async () => {
-  ui.upload.disabled = true;
+ui.publish.onclick = async () => {
+  if (!lastPrepared) { feedback("Prepare primeiro uma publicação e mantenha o corte aberto."); return; }
+  ui.publish.disabled = true;
+  const prepared = lastPrepared;
+  let began = false;
+  let remoteVideoId = null;
   try {
-    const result = localExport();
-    if (!ui.channel.value) throw Error("Conecte primeiro um canal de destino");
-    if (!e("rights").checked) throw Error("Confirme os direitos do material no editor.");
-    feedback("Calculando SHA-256 localmente...");
-    const sha256 = hex(await crypto.subtle.digest("SHA-256", await result.blob.arrayBuffer()));
-    const stableClientKey = "sha256:" + sha256 + ":channel:" + ui.channel.value;
-    const created = await request("/v1/exports", {
-      method: "POST", body: JSON.stringify({
-        org_id: orgId(), channel_id: ui.channel.value,
-        client_key: stableClientKey, sha256, size_bytes: result.blob.size,
-        title: ui.title.value || result.name.slice(0, 100), description: ui.description.value || ""
-      })
+    // Google popup is immediately initiated by the button's user gesture.
+    const token = await ensureGoogle([YOUTUBE_READ, YOUTUBE_UPLOAD]);
+    const owned = await selectGoogleChannel(token);
+    if (!owned.some(row => row.id === prepared.channel.youtube_channel_id))
+      throw Error("A conta Google selecionada NÃO corresponde ao canal de destino. Upload bloqueado.");
+    if (!e("saasApprovalCheck").checked) throw Error("Confirmação de direitos não está marcada.");
+    const title = (ui.title.value.trim() || "AutoClips") .slice(0, 100);
+    const description = ui.description.value.slice(0, 5000);
+    await api("/v1/jobs/" + prepared.jobId + "/begin", {
+      method: "POST", body: JSON.stringify({ org_id: orgId() }),
     });
-    const id = created.job.id;
-    lastJobId = id;
-    if (created.already_uploaded && created.job.status !== "ready") {
-      ui.approve.disabled = true;
-      feedback("Esta publicação já existe no canal (" + created.job.status + "). Nova postagem duplicada bloqueada.");
-      await refreshWorkspace();
-      return;
+    began = true;
+    feedback("O navegador está enviando o corte DIRETAMENTE ao YouTube; mantenha esta aba aberta.");
+    ui.progress.value = 0;
+    const result = await sendDirectToYoutube(prepared, token, title, description);
+    if (!/^[A-Za-z0-9_-]{11}$/.test(result?.id || "")) {
+      throw Error("YouTube não retornou ID válido; envio precisa ser reconciliado.");
     }
-    if (!created.already_uploaded) {
-      feedback("Enviando somente o MP4 final ao bucket privado...");
-      const response = await fetch(created.upload_url, {
-        method: "PUT", body: result.blob, headers: created.required_headers
-      });
-      if (!response.ok) throw Error("Upload ao bucket falhou: " + response.status);
-      await request("/v1/exports/" + encodeURIComponent(id) + "/complete", {
-        method: "POST", body: JSON.stringify({ org_id: orgId() })
-      });
-    }
-    ui.approve.disabled = false;
-    feedback("MP4 final recebido. Revise o conteúdo antes de aprovar postagem privada (1 crédito).");
-    await refreshWorkspace();
-  } catch (error) { feedback("Exportação SaaS: " + error.message); }
-  finally { ui.upload.disabled = false; }
-};
-ui.approve.onclick = async () => {
-  try {
-    if (!lastJobId) throw Error("Envie um corte para revisão primeiro.");
-    if (!e("saasApprovalCheck").checked) throw Error("Marque a confirmação explícita da publicação privada.");
-    await request("/v1/jobs/" + encodeURIComponent(lastJobId) + "/approve", {
+    remoteVideoId = result.id;
+    const confirmed = await api("/v1/jobs/" + prepared.jobId + "/complete", {
       method: "POST",
-      body: JSON.stringify({ org_id: orgId(), rights_confirmed: true, visibility: "private" })
+      headers: { "X-YouTube-Access-Token": token },
+      body: JSON.stringify({ org_id: orgId(), youtube_video_id: remoteVideoId }),
     });
-    ui.approve.disabled = true;
-    feedback("Publicação privada enfileirada. Um crédito foi reservado; será consumido após confirmação do YouTube.");
+    feedback("Publicado em modo privado. ID YouTube: " +
+      confirmed.youtube_video_id + ". Um crédito consumido após confirmação oficial.");
+    lastPrepared = null;
     await refreshWorkspace();
-  } catch (error) { feedback(error.message); }
+  } catch (err) {
+    if (began) {
+      try {
+        await api("/v1/jobs/" + prepared.jobId + "/uncertain", {
+          method: "POST", body: JSON.stringify({ org_id: orgId() }),
+        });
+      } catch { /* no assumption that the server received the update */ }
+      feedback("Envio precisa de reconciliação: " + err.message +
+        (remoteVideoId ? " · YouTube ID: " + remoteVideoId : "") +
+        ". NÃO reenviar como novo vídeo automaticamente.");
+    } else {
+      ui.publish.disabled = false;
+      feedback("Envio não iniciado: " + err.message + ". Crédito permanece reservado.");
+    }
+    await refreshWorkspace().catch(() => {});
+  }
 };
 (async () => {
   try {
-    const res = await fetch("./saas-config.json", { cache: "no-store" });
-    if (!res.ok) return;
-    configs = await res.json();
-    if (configs.apiUrl) ui.api.value = configs.apiUrl;
-    if (configs.supabaseUrl) ui.supabase.value = configs.supabaseUrl;
-    if (configs.supabasePublishableKey) ui.publicKey.value = configs.supabasePublishableKey;
-  } catch { /* Standalone local proof remains usable without SaaS config. */ }
-  if (new URLSearchParams(location.search).get("google")) {
-    feedback("Autorização Google finalizada. Faça login novamente para conferir o canal.");
-  }
+    const response = await fetch("./saas-config.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const conf = await response.json();
+    if (conf.apiUrl) ui.api.value = conf.apiUrl;
+    if (conf.supabaseUrl) ui.supabase.value = conf.supabaseUrl;
+    if (conf.supabasePublishableKey) ui.publicKey.value = conf.supabasePublishableKey;
+    if (conf.googleClientId) ui.googleClientId.value = conf.googleClientId;
+  } catch {}
 })();

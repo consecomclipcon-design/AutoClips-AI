@@ -71,14 +71,53 @@ def verify_media(path: str, expected_sha256: str, expected_bytes: int):
     audios = [s for s in streams if s.get("codec_type") == "audio"]
     if not videos or not audios:
         raise ValueError("Expected both video and audio tracks")
-    if videos[0].get("codec_name") != "h264" or audios[0].get("codec_name") != "aac":
-        raise ValueError("MP4 must contain H.264 video and AAC audio for this release")
     width, height = videos[0].get("width", 0), videos[0].get("height", 0)
     if width <= 0 or height <= 0 or abs(width / height - 9 / 16) > 0.02:
         raise ValueError("Expected a 9:16 vertical MP4")
     duration = float(payload.get("format", {}).get("duration") or 0)
     if not (0 < duration <= 180.5):
         raise ValueError("MP4 duration must be within 180 seconds")
+    return {
+        "video_codec": videos[0].get("codec_name"),
+        "audio_codec": audios[0].get("codec_name"),
+        "width": width, "height": height, "duration": duration,
+    }
+
+
+def normalize_media(path: str, metadata: dict, directory: str) -> str:
+    """Final-clip codec fallback ONLY. Never transcode a long source on the server.
+
+    Chromium sometimes wraps VP9/Opus in MP4 despite advertising an MP4 MIME.
+    This function ensures the YouTube uploader receives H.264/AAC in a real MP4.
+    Off by default: enable explicitly in staging after measuring CPU/cost.
+    """
+    if metadata["video_codec"] == "h264" and metadata["audio_codec"] == "aac":
+        return path
+    if os.getenv("ALLOW_SERVER_CODEC_FALLBACK", "0") != "1":
+        raise ValueError("Browser produced incompatible MP4 codecs; enable tested final-clip fallback")
+    output = str(Path(directory) / "youtube-compatible.mp4")
+    args = [
+        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", path, "-map", "0:v:0", "-map", "0:a:0",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
+        "-pix_fmt", "yuv420p", "-threads", "2",
+        "-c:a", "aac", "-b:a", "96k",
+        "-movflags", "+faststart", output,
+    ]
+    subprocess.run(args, capture_output=True, check=True, timeout=900)
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries",
+         "stream=codec_name,codec_type,width,height", "-of", "json", output],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    parsed = json.loads(probe.stdout).get("streams", [])
+    video = next((x for x in parsed if x.get("codec_type") == "video"), {})
+    audio = next((x for x in parsed if x.get("codec_type") == "audio"), {})
+    if video.get("codec_name") != "h264" or audio.get("codec_name") != "aac":
+        raise ValueError("Post-encode codec validation failed")
+    if video.get("width") != metadata["width"] or video.get("height") != metadata["height"]:
+        raise ValueError("Post-encode dimensions changed unexpectedly")
+    return output
 
 
 def preflight_abort(job, error: Exception):
@@ -146,13 +185,14 @@ def process_one() -> bool:
         mp4 = str(Path(directory) / "final.mp4")
         try:
             storage_client().download_file(config("S3_BUCKET"), job["object_key"], mp4)
-            verify_media(mp4, job["expected_sha256"], job["expected_bytes"])
+            metadata = verify_media(mp4, job["expected_sha256"], job["expected_bytes"])
+            upload_path = normalize_media(mp4, metadata, directory)
             youtube = youtube_client(channel)
         except Exception as exc:
             preflight_abort(job, exc)
             return True
         try:
-            media = MediaFileUpload(mp4, mimetype="video/mp4", resumable=True, chunksize=8 * 1024 * 1024)
+            media = MediaFileUpload(upload_path, mimetype="video/mp4", resumable=True, chunksize=8 * 1024 * 1024)
             request = youtube.videos().insert(
                 part="snippet,status",
                 body={

@@ -38,7 +38,8 @@ jobs:
           curl -fsS http://127.0.0.1:18080/saas-config.json | grep -q 'https://api.example.com'
           curl -fsSI http://127.0.0.1:18080/ | grep -qi 'content-security-policy'
           curl -fsSI http://127.0.0.1:18080/ | grep -qi 'cross-origin-opener-policy'
-          test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: video/mp4' --data-binary @/dev/zero http://127.0.0.1:18080/ --max-time 2 || true)" != "200"
+          head -c 65536 /dev/zero > /tmp/not-allowed.mp4
+          test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: video/mp4' --data-binary @/tmp/not-allowed.mp4 http://127.0.0.1:18080/)" = "413"
           docker logs autoclips-zero-media-test
       - name: Stop container
         if: always()

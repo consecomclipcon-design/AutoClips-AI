@@ -381,9 +381,9 @@ d("adApprovalDialog").onclick=event=>{if(event.target===d("adApprovalDialog"))d(
 document.addEventListener("keydown",event=>{
   if(event.key==="Escape"){d("adApprovalDialog").hidden=true;closeCredit();}
 });
-const oldFolder=d("folder");
-oldFolder.addEventListener("click",()=>{
-  d("adFolderName").textContent="Pasta selecionada pelo navegador (se o acesso for concedido)";
+window.addEventListener("autoclips:directory-selected",event=>{
+  d("adFolderName").textContent=event.detail?.name||"Pasta autorizada";
+  notify("Pasta autorizada pelo navegador. Os originais continuam neste computador.");
 });
 const oldFiles=d("files");
 new MutationObserver(()=>refreshLocal()).observe(oldFiles,{childList:true,subtree:true,attributes:true,attributeFilter:["class"]});

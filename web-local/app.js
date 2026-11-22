@@ -408,4 +408,5 @@ async function initialize() {
   if (!worker) status("Web Worker indisponível neste navegador.");
   ctx.fillStyle = "#080a0e"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
+window.autoclipsLocalGetExport = () => state.output;
 initialize();

@@ -92,7 +92,7 @@ def preflight_abort(job, error: Exception):
             if row and row["status"] == "uploading" and row["credit_state"] == "reserved":
                 conn.execute(
                     "update autoclips_saas.jobs set status='queued',last_error=%s where id=%s",
-                    ("Preflight blocked: " + str(error)[:400], job["id"]),
+                    ("Preflight blocked (" + type(error).__name__ + "); check private worker logs without tokens", job["id"]),
                 )
                 release_credit(conn, job["org_id"], job["id"])
 
@@ -104,7 +104,7 @@ def mark_uncertain(job, error: Exception):
             conn.execute(
                 """update autoclips_saas.jobs set status='needs_reconciliation',
                    last_error=%s,updated_at=now() where id=%s and status='uploading'""",
-                (str(error)[:600], job["id"]),
+                ("Upload result uncertain (" + type(error).__name__ + "); manual reconciliation required", job["id"]),
             )
 
 

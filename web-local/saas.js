@@ -21,7 +21,10 @@ const YOUTUBE_UPLOAD = "https://www.googleapis.com/auth/youtube.upload";
 let session = null, lastPrepared = null, channels = new Map();
 let googleAccess = null;
 const fmt = n => Number(n || 0).toLocaleString("pt-BR");
-function feedback(message) { ui.feedback.textContent = String(message); }
+function feedback(message) {
+  ui.feedback.textContent = String(message);
+  window.dispatchEvent(new CustomEvent("autoclips:feedback", {detail:{message:String(message)}}));
+}
 function safeUrl(element) {
   let u;
   try { u = new URL(element.value.trim()); } catch { throw Error("Informe uma URL válida"); }
@@ -41,6 +44,7 @@ async function api(path, opts = {}) {
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   const response = await fetch(safeUrl(ui.api) + path, { ...opts, headers });
   const result = await response.json().catch(() => ({}));
+  if (response.status === 402) window.dispatchEvent(new Event("autoclips:credits-exhausted"));
   if (!response.ok) throw Error(result.detail || "Erro HTTP " + response.status);
   return result;
 }
@@ -70,6 +74,7 @@ async function refreshWorkspace() {
   ]);
   channels = new Map(linked.filter(c => c.active).map(c => [c.id, c]));
   ui.credits.textContent = fmt(wallet.available) + " disponíveis · " + fmt(wallet.reserved) + " reservados";
+  window.dispatchEvent(new CustomEvent("autoclips:wallet", {detail:{wallet,jobs}}));
   const selectedChannel = ui.channel.value, selectedSource = ui.sourceList.value;
   ui.channel.replaceChildren();
   for (const channel of channels.values()) {

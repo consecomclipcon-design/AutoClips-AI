@@ -58,6 +58,21 @@ create table if not exists autoclips_saas.sources (
 );
 create unique index if not exists sources_youtube_unique on autoclips_saas.sources(org_id, youtube_source_id) where youtube_source_id is not null;
 
+
+create table if not exists autoclips_saas.source_videos (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references autoclips_saas.organizations(id) on delete cascade,
+  source_id uuid not null,
+  youtube_video_id text not null check (length(youtube_video_id) between 8 and 24),
+  title text not null default '',
+  published_at timestamptz,
+  state text not null default 'awaiting_original' check (state in ('awaiting_original','ready_for_editing')),
+  discovered_at timestamptz not null default now(),
+  constraint source_videos_source_tenant foreign key (source_id,org_id) references autoclips_saas.sources(id,org_id),
+  unique (org_id,source_id,youtube_video_id)
+);
+create index if not exists source_videos_org on autoclips_saas.source_videos(org_id,source_id,discovered_at desc);
+
 create table if not exists autoclips_saas.jobs (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references autoclips_saas.organizations(id) on delete cascade,
@@ -123,7 +138,7 @@ declare tbl text;
 begin
   foreach tbl in array array[
     'organizations','memberships','wallets','channels','oauth_states',
-    'sources','jobs','credit_events','stripe_checkouts'
+    'sources','source_videos','jobs','credit_events','stripe_checkouts'
   ] loop
     execute format('alter table autoclips_saas.%I enable row level security',tbl);
     execute format('revoke all on autoclips_saas.%I from public, anon, authenticated',tbl);

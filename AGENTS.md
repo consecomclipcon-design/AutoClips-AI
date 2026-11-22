@@ -337,3 +337,20 @@ Esta seção registra a **decisão mais recente do usuário** para uma modalidad
 - Esta implementação permanece em uma pull request RASCUNHO isolada; não fazer merge nem substituir serviço de produção durante a prova. A integração e o lançamento dependem de testes com material real autorizado, avaliações de memória e segurança.
 
 **Regra de verdade:** arquivos de código e CI não significam que o SaaS esteja implantado, ativo para clientes ou pronto para publicar.
+
+
+---
+
+## NOVA REGRA SUPREMA PARA O SaaS — 22/11/2026 (ZERO MEDIA / PRODUÇÃO)
+
+**A solicitação MAIS RECENTE do proprietário SUBSTITUI qualquer instrução anterior que envie MP4 final a S3, faça transcode no servidor, armazene tokens Google refresh, ofereça prévia móvel por bucket ou use worker de upload no SaaS.** Ela se aplica aos módulos web-local e saas-api da branch SaaS, NÃO necessariamente ao produto/worker legado que existia antes.
+
+1. TODOS os arquivos originais, áudios, imagens e cortes são lidos, baixados, exportados, salvos e processados apenas no navegador/computador do próprio cliente, sob seleção/autorização de arquivos e pastas. A aplicação não tem acesso irrestrito a disco.
+2. Quando um original tem URL HTTPS direta autorizada e CORS, o browser faz streaming diretamente do servidor da fonte para arquivo escolhido pelo cliente. Nunca criar proxy/download S3/Railway como fallback. URLs públicas de páginas YouTube NÃO disponibilizam download autorizado via API.
+3. Única saída binária pela rede do cliente para postagem é a API oficial do YouTube, com upload de navegador para Google. O AutoClips SaaS não recebe vídeo nem como bytes transitórios, nem como objetos armazenados, nem por SDK/nuvem.
+4. O backend guarda somente organizações, vínculo de canal validado, metadados/IDs/hashes de mídia, créditos, status, logs sem segredos e pagamentos. Sem token_ciphertext, sem object_key, sem storage, sem worker FFmpeg/cloud uploader.
+5. Google Identity Services (GIS) no navegador fornece access token curto após consentimento. O backend pode receber esse token APENAS por cabeçalho transitório para consulta autenticada de metadados de canal/publicação, nunca salvá-lo. Não usa Google client secret/refresh token no SaaS.
+6. 1 crédito = R$ 0,15 por publicação confirmada em 1 canal. Reservar ao aprovar, capturar após YouTube Data API confirmar ID e canal e privacidade privada; resultado ambíguo fica preso para reconciliação, sem retries que gerem duplicatas.
+7. O navegador deve ficar aberto para renderizar/upload. O painel pode continuar online, mas sem mídia local não há upload/render após fechar. Revisão móvel só de METADADOS até existir P2P comprovado; NÃO prometer prévia em nuvem.
+8. Deploy web: web-local/Dockerfile, HTTPS + config pública. Deploy API: saas-api/Dockerfile, Postgres privado/Supabase Auth/Stripe. Testar com canais de teste e pagamento teste. Não fazer deploy em main/prod sem confirmar external setup, conformidade e segurança.
+9. O projeto não deve anunciar IA editorial, transcrição sincronizada, crop automático, YouTube Analytics ou conectividade completa como prontos antes de implementados e testados. Consultar saas-api/README.md e web-local/README.md atuais.

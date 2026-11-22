@@ -85,6 +85,7 @@ def preflight_abort(job, error: Exception):
     """A verified preflight failure occurred BEFORE any YouTube write was attempted."""
     with database() as conn:
         with conn.transaction():
+            conn.execute("select org_id from autoclips_saas.wallets where org_id=%s for update", (job["org_id"],))
             row = conn.execute(
                 "select status,credit_state from autoclips_saas.jobs where id=%s for update",
                 (job["id"],),

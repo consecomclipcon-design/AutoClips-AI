@@ -4,7 +4,7 @@ import path from "node:path";
 const root=process.cwd(),dir=path.join(root,"dist");
 fs.mkdirSync(dir,{recursive:true});
 const publicAssets=[
-  "index.html","studio.css","studio-ui.js","app.js","saas.js",
+  "index.html","studio.css","studio-ui.js","desktop-ui.css","desktop-ui.js","app.js","saas.js",
   "render.worker.js","review.html","review.js"
 ];
 for(const name of publicAssets){
@@ -27,5 +27,5 @@ if(cfg.googleClientId&&!cfg.googleClientId.endsWith(".apps.googleusercontent.com
   throw Error("Invalid Google Web OAuth Client ID");
 }
 fs.writeFileSync(path.join(dir,"saas-config.json"),JSON.stringify(cfg,null,2));
-console.log("AutoClips Studio build: 8 static assets; mode="+
+console.log("AutoClips Studio build: 10 static assets; mode="+
   (Object.values(cfg).every(Boolean)?"configured":"preview-only"));

@@ -24,7 +24,10 @@ jobs:
           node --check web-local/saas.js
           node --check web-local/studio-ui.js
           node --check web-local/desktop-ui.js
-          node --check web-local/review.js
+          node --check web-local/captions.js
+          node --check web-local/transcribe.js
+          node --check web-local/transcribe.worker.js
+          node web-local/captions.test.mjs
       - name: Serve isolated folder (no production service)
         run: |
           python3 -m http.server 8080 --bind 127.0.0.1 --directory web-local >/tmp/web-local.log 2>&1 &
@@ -35,9 +38,13 @@ jobs:
           grep -q 'AutoClips' /tmp/autoclips-local.html
           curl -fsS http://127.0.0.1:8080/app.js -o /dev/null
           curl -fsS http://127.0.0.1:8080/render.worker.js -o /dev/null
-          curl -fsS http://127.0.0.1:8080/review.html -o /dev/null
+          curl -fsS http://127.0.0.1:8080/captions.js -o /dev/null
+          curl -fsS http://127.0.0.1:8080/transcribe.js -o /dev/null
+          curl -fsS http://127.0.0.1:8080/transcribe.worker.js -o /dev/null
           curl -fsS http://127.0.0.1:8080/studio.css | grep -q '#08090f'
           curl -fsS http://127.0.0.1:8080/desktop-ui.css | grep -q 'ad-rail'
           curl -fsS http://127.0.0.1:8080/desktop-ui.js | grep -q 'autoclips:wallet'
           grep -q 'id="view-payments"' /tmp/autoclips-local.html
           grep -q 'id="creditModal"' /tmp/autoclips-local.html
+          grep -q 'id="adTranscribe"' /tmp/autoclips-local.html
+          ! grep -q 'id="adReviewMobile"' /tmp/autoclips-local.html

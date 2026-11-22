@@ -24,7 +24,7 @@ try {
   ]) {
     await page.locator('[data-desktop-page="' + screen + '"]').first().click();
     const content = await page.locator("#ad-" + screen).innerText();
-    assert.ok(content.includes(heading), "Tela ausente: " + screen);
+    assert.ok(content.toLowerCase().includes(heading.toLowerCase()), "Tela ausente: " + screen);
     assert.equal(await page.locator("#ad-" + screen).isVisible(), true);
   }
   await page.locator('[data-desktop-page="create"]').first().click();

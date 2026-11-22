@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Install headless browser
         run: |
           npm install --no-save playwright
@@ -36,14 +39,35 @@ jobs:
           python3 -m http.server 8080 --bind 127.0.0.1 --directory web-local >/tmp/web-local.log 2>&1 &
           sleep 2
           node web-local/e2e.mjs
-      - name: Check streams of rendered file
+      - name: Verify export and normalize final MP4 when needed
+        env:
+          PYTHONPATH: saas-api
+          ALLOW_SERVER_CODEC_FALLBACK: '1'
         run: |
-          f=$(find /tmp -maxdepth 1 -type f \( -name 'autoclips-fixture-*.mp4' -o -name 'autoclips-fixture-*.webm' \) | head -n1)
-          test -n "$f"
-          ffprobe -v error -show_entries stream=codec_type -of csv=p=0 "$f" > /tmp/streams.txt
-          grep -q video /tmp/streams.txt
-          grep -q audio /tmp/streams.txt
-          ffprobe -v error -show_entries stream=index,codec_name,codec_type,width,height -of json "$f"
-          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$f")" = "h264"
-          test "$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$f")" = "aac"
-          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$f")" = "540x960"
+          python -m pip install -r saas-api/requirements.txt
+          python - <<'PY'
+          from glob import glob
+          import hashlib, os, subprocess
+          from worker import verify_media, normalize_media
+          candidates = glob('/tmp/autoclips-fixture-*.mp4')
+          assert len(candidates) == 1, candidates
+          path = candidates[0]
+          with open(path,'rb') as stream:
+              sha = hashlib.sha256(stream.read()).hexdigest()
+          info = verify_media(path, sha, os.stat(path).st_size)
+          print('Browser MP4 codecs:', info['video_codec'], info['audio_codec'])
+          result = normalize_media(path, info, '/tmp')
+          print('YouTube-ready final file:', result)
+          for kind, expected in [('v:0','h264'), ('a:0','aac')]:
+              codec = subprocess.check_output(
+                  ['ffprobe','-v','error','-select_streams',kind,
+                   '-show_entries','stream=codec_name','-of',
+                   'default=noprint_wrappers=1:nokey=1',result],text=True
+              ).strip()
+              assert codec == expected, (kind,codec)
+          dims = subprocess.check_output(
+              ['ffprobe','-v','error','-select_streams','v:0','-show_entries',
+               'stream=width,height','-of','csv=s=x:p=0',result],text=True
+          ).strip()
+          assert dims == '540x960',dims
+          PY

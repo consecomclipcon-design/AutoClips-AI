@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AutoClips — Revisão remota</title><meta name="color-scheme" content="dark">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0c1119;color:#f5f7fb;font:15px system-ui,-apple-system,sans-serif}
+main{width:min(760px,100%);margin:auto;padding:22px 16px 70px}
+h1{font-size:27px;letter-spacing:-1px}h2{font-size:17px}
+p,small{color:#aeb8c7;line-height:1.5}
+section{background:#151c28;border:1px solid #354054;border-radius:16px;padding:18px;margin-top:18px}
+label{display:block;margin:12px 0 5px;color:#cbd3df;font-size:13px}
+input,select{display:block;width:100%;padding:12px;border-radius:10px;border:1px solid #394960;color:#f4f7fb;background:#101722;font:inherit}
+input[type=checkbox]{display:inline;width:auto;margin:0 8px 0 0}
+button{background:#f1664c;color:#0e131a;border:0;border-radius:9px;font:700 14px system-ui;padding:12px 14px;margin:11px 8px 0 0;cursor:pointer}
+button.secondary{background:#2e394b;color:#f5f7fb}
+button:disabled{opacity:.45}video{width:100%;max-height:65vh;background:#000;border-radius:12px}
+.item{border:1px solid #344054;border-radius:12px;padding:14px;margin:10px 0}
+.item h3{margin:0 0 6px;font-size:16px}.item small{display:block}
+#feedback{background:#243244;padding:12px;border-radius:10px;min-height:40px}
+a{color:#fa9882}
+</style></head>
+<body><main>
+<a href="./index.html">Voltar ao editor local</a>
+<h1>AutoClips · Revisão remota</h1>
+<p>Consulte e aprove cortes de seus canais, inclusive pelo celular. Somente o MP4 final é sincronizado. Os vídeos originais longos não ficam disponíveis neste painel.</p>
+<section><h2>Conectar à sua conta</h2>
+<label>URL da API</label><input id="api" placeholder="https://api.exemplo.com">
+<label>URL do Supabase</label><input id="authUrl" placeholder="https://projeto.supabase.co">
+<label>Chave pública do Supabase</label><input id="publishable" placeholder="sb_publishable_..." autocomplete="off">
+<label>E-mail</label><input id="email" type="email" autocomplete="email">
+<label>Senha</label><input id="password" type="password" autocomplete="current-password">
+<button id="login">Entrar</button><div id="feedback" role="status">Configure o serviço e entre para visualizar suas publicações.</div></section>
+<section><h2>Publicações</h2>
+<label>Espaço de trabalho</label><select id="org"></select>
+<button id="refresh" class="secondary">Atualizar</button>
+<p id="credits">—</p>
+<div id="items"></div>
+</section>
+<section><h2>Prévia privada</h2>
+<video controls playsinline id="preview"></video>
+<p id="previewDescription">Selecione uma publicação acima. O link de reprodução expira em poucos minutos.</p>
+<label><input id="rights" type="checkbox">Tenho direitos sobre este material e confirmo o envio PRIVADO ao canal indicado.</label>
+<button id="approve" disabled>Aprovar publicação privada (1 crédito)</button>
+</section>
+</main><script type="module" src="./review.js"></script>
+</body></html>

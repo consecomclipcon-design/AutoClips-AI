@@ -23,6 +23,7 @@ jobs:
           node --check web-local/render.worker.js
           node --check web-local/saas.js
           node --check web-local/studio-ui.js
+          node --check web-local/desktop-ui.js
           node --check web-local/review.js
       - name: Serve isolated folder (no production service)
         run: |
@@ -36,5 +37,7 @@ jobs:
           curl -fsS http://127.0.0.1:8080/render.worker.js -o /dev/null
           curl -fsS http://127.0.0.1:8080/review.html -o /dev/null
           curl -fsS http://127.0.0.1:8080/studio.css | grep -q '#08090f'
+          curl -fsS http://127.0.0.1:8080/desktop-ui.css | grep -q 'ad-rail'
+          curl -fsS http://127.0.0.1:8080/desktop-ui.js | grep -q 'autoclips:wallet'
           grep -q 'id="view-payments"' /tmp/autoclips-local.html
           grep -q 'id="creditModal"' /tmp/autoclips-local.html

@@ -39,6 +39,13 @@ class OrganizationCreate(BaseModel):
     name: str = Field(min_length=2, max_length=120)
 
 
+
+class SourceCreate(BaseModel):
+    org_id: UUID
+    youtube_channel_id: str = Field(pattern=r"^UC[A-Za-z0-9_-]{22}$")
+    authorization_basis: str = Field(min_length=3, max_length=300)
+
+
 class ExportCreate(BaseModel):
     org_id: UUID
     channel_id: UUID
@@ -247,6 +254,105 @@ def disconnect(channel_id: UUID, body: OrgInput,
             (channel_id,),
         )
     return {"disconnected": True}
+
+
+@app.get("/v1/sources")
+def sources(org_id: UUID, user: UUID = Depends(current_user), conn=Depends(db_dep)):
+    require_member(conn, org_id, user)
+    return conn.execute(
+        """select id,youtube_source_id,authorized_basis,created_at
+           from autoclips_saas.sources where org_id=%s order by created_at desc""",
+        (org_id,),
+    ).fetchall()
+
+
+@app.post("/v1/sources", status_code=201)
+def create_source(body: SourceCreate, user: UUID = Depends(current_user), conn=Depends(db_dep)):
+    require_member(conn, body.org_id, user, ("owner", "admin", "editor"))
+    with conn.transaction():
+        existing = conn.execute(
+            "select id from autoclips_saas.sources where org_id=%s and youtube_source_id=%s",
+            (body.org_id, body.youtube_channel_id),
+        ).fetchone()
+        if existing:
+            return existing
+        return conn.execute(
+            """insert into autoclips_saas.sources(org_id,youtube_source_id,authorized_basis)
+               values(%s,%s,%s) returning id""",
+            (body.org_id, body.youtube_channel_id, body.authorization_basis.strip()),
+        ).fetchone()
+
+
+@app.get("/v1/sources/{source_id}/videos")
+def source_videos(source_id: UUID, org_id: UUID,
+                  user: UUID = Depends(current_user), conn=Depends(db_dep)):
+    require_member(conn, org_id, user)
+    row = conn.execute(
+        "select id from autoclips_saas.sources where id=%s and org_id=%s", (source_id, org_id)
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Source not found")
+    return conn.execute(
+        """select id,youtube_video_id,title,published_at,state,discovered_at
+           from autoclips_saas.source_videos where org_id=%s and source_id=%s
+           order by published_at desc nulls last limit 100""",
+        (org_id, source_id),
+    ).fetchall()
+
+
+@app.post("/v1/sources/{source_id}/discover")
+def discover_source(source_id: UUID, org_id: UUID, connected_channel_id: UUID,
+                    page_token: str = Query(default="", max_length=250),
+                    user: UUID = Depends(current_user), conn=Depends(db_dep)):
+    """Metadata discovery only. No audiovisual download; each original awaits authorized file."""
+    require_member(conn, org_id, user, ("owner", "admin", "editor"))
+    source = conn.execute(
+        "select * from autoclips_saas.sources where id=%s and org_id=%s",
+        (source_id, org_id),
+    ).fetchone()
+    channel = conn.execute(
+        "select * from autoclips_saas.channels where id=%s and org_id=%s and active=true",
+        (connected_channel_id, org_id),
+    ).fetchone()
+    if source is None or channel is None:
+        raise HTTPException(404, "Source or channel not found")
+    try:
+        from worker import youtube_client
+        youtube = youtube_client(channel)
+        info = youtube.channels().list(part="contentDetails", id=source["youtube_source_id"]).execute()
+        items = info.get("items") or []
+        if not items:
+            raise HTTPException(404, "Original channel not available")
+        uploads_playlist = items[0].get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads")
+        if not uploads_playlist:
+            raise HTTPException(404, "Uploads playlist is not available")
+        opts = {"part": "snippet,contentDetails", "playlistId": uploads_playlist, "maxResults": 25}
+        if page_token:
+            opts["pageToken"] = page_token
+        discovered = youtube.playlistItems().list(**opts).execute()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, "YouTube metadata discovery failed") from exc
+    accepted = 0
+    with conn.transaction():
+        for item in discovered.get("items") or []:
+            video_id = item.get("contentDetails", {}).get("videoId")
+            if not video_id:
+                continue
+            title = item.get("snippet", {}).get("title", "")[:200]
+            published_at = item.get("contentDetails", {}).get("videoPublishedAt") or None
+            conn.execute(
+                """insert into autoclips_saas.source_videos
+                   (org_id,source_id,youtube_video_id,title,published_at)
+                   values(%s,%s,%s,%s,%s)
+                   on conflict(org_id,source_id,youtube_video_id)
+                   do update set title=excluded.title,published_at=excluded.published_at""",
+                (org_id, source_id, video_id, title, published_at),
+            )
+            accepted += 1
+    return {"discovered": accepted, "next_page_token": discovered.get("nextPageToken"),
+            "media_state": "awaiting_authorized_original"}
 
 
 @app.post("/v1/exports", status_code=201)

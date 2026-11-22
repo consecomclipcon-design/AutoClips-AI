@@ -1,0 +1,9 @@
+fastapi==0.115.12
+uvicorn==0.34.2
+psycopg[binary]==3.2.6
+httpx==0.28.1
+cryptography==44.0.2
+boto3==1.38.20
+google-auth==2.39.0
+google-api-python-client==2.168.0
+stripe==12.0.0

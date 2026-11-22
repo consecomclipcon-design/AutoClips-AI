@@ -22,7 +22,7 @@ a{color:#fa9882}
 <body><main>
 <a href="./index.html">Voltar ao editor local</a>
 <h1>AutoClips · Revisão remota</h1>
-<p>Consulte e aprove cortes de seus canais, inclusive pelo celular. Somente o MP4 final é sincronizado. Os vídeos originais longos não ficam disponíveis neste painel.</p>
+<p>Acompanhe créditos e publicações pelo celular. Por privacidade, o AutoClips NÃO armazena MP4s, originais, miniaturas ou trechos de mídia no servidor. A revisão visual e o envio só são feitos no computador onde está o corte.</p>
 <section><h2>Conectar à sua conta</h2>
 <label>URL da API</label><input id="api" placeholder="https://api.exemplo.com">
 <label>URL do Supabase</label><input id="authUrl" placeholder="https://projeto.supabase.co">
@@ -36,11 +36,6 @@ a{color:#fa9882}
 <p id="credits">—</p>
 <div id="items"></div>
 </section>
-<section><h2>Prévia privada</h2>
-<video controls playsinline id="preview"></video>
-<p id="previewDescription">Selecione uma publicação acima. O link de reprodução expira em poucos minutos.</p>
-<label><input id="rights" type="checkbox">Tenho direitos sobre este material e confirmo o envio PRIVADO ao canal indicado.</label>
-<button id="approve" disabled>Aprovar publicação privada (1 crédito)</button>
-</section>
+<section><h2>Revisão de mídia</h2><p>Por padrão, a mídia nunca sai do computador de produção. Para revisar o vídeo, abra o editor nesse computador e utilize a prévia local. A revisão móvel exibe apenas metadados e status.</p></section>
 </main><script type="module" src="./review.js"></script>
 </body></html>

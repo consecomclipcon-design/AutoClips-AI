@@ -181,6 +181,7 @@ function showEditor(){
   d("adEditor").hidden=false;
   if(d("source").parentElement!==d("adSourceMount"))d("adSourceMount").append(d("source"));
   if(d("composition").parentElement!==d("adCompositionMount"))d("adCompositionMount").append(d("composition"));
+  if(d("output").parentElement!==d("adEditor"))d("adEditor").append(d("output"));
   const vid=d("source");
   if(vid.src && d("editing").disabled===false){
     d("adCutStart").value=d("start").value;
@@ -342,6 +343,7 @@ function updatePosting(){
   d("adPostingCount").hidden=!pending.length;d("adPostingCount").textContent=String(pending.length);
 }
 d("adPostAll").onclick=updatePosting;
+d("adUploadDirect").onclick=()=>{if(d("saasPublish").disabled){notify("Confirme o crédito antes de publicar.");return;}d("saasPublish").click();notify("Enviando vídeo diretamente ao YouTube a partir deste navegador.");};
 
 async function storage(){
   try{
@@ -388,6 +390,6 @@ new MutationObserver(()=>refreshLocal()).observe(oldFiles,{childList:true,subtre
 new MutationObserver(()=>updateChannels()).observe(d("saasChannel"),{childList:true,subtree:true});
 d("source").addEventListener("loadedmetadata",()=>{showEditor();page("create");refreshLocal();});
 d("status").addEventListener("DOMSubtreeModified",()=>{d("adExportFeedback").textContent=d("status").textContent;});
-setInterval(()=>{if(!document.hidden){refreshClip();d("adCreationProgress").style.width=String(Math.min(100,Number(d("progress").value)||0))+"%";}},1250);
+setInterval(()=>{if(!document.hidden){refreshClip();d("adUploadDirect").hidden=!(local.blob&&!d("saasPublish").disabled);d("adCreationProgress").style.width=String(Math.min(100,Number(d("progress").value)||0))+"%";}},1250);
 window.addEventListener("beforeunload",()=>{if(local.url)URL.revokeObjectURL(local.url);});
 refreshLocal();updateChannels();updateBilling();page("overview");

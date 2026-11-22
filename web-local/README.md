@@ -1,5 +1,18 @@
 # Layout desktop de referência — telas fornecidas em 22/11/2026
 
+## Transcrição de áudio no computador — branch browser local
+
+O editor oferece **Transcrever vídeo** (Whisper multilíngue, português, WASM em Web Worker), **Importar SRT/VTT** e sugestões simples de intervalos a partir das falas, que o usuário pode revisar. A extração de áudio usa Mediabunny no navegador em blocos de até 28 segundos; o vídeo e os bytes de áudio não passam pelos servidores AutoClips. O modelo é baixado **diretamente para o navegador do cliente**, inicialmente de Hugging Face/CDN (internet e memória suficientes são necessárias). Ao exportar, os trechos de legenda aparecem em seus instantes na composição feita no computador.
+
+A função de sugestões usa uma **heurística local de duração e palavras**, não um modelo editorial treinado para identificar os melhores momentos. A geração de múltiplos vídeos a partir de uma única análise, o corte inteligente automático e os dados completos de Analytics dependem de integrações adicionais, não devem ser anunciados como prontos.
+
+**APK/pareamento Android fora do escopo:** a interface, os assets de revisão móvel e os botões relacionados foram retirados nesta branch. A revisão permanece no dispositivo que contém o corte, sem enviar vídeo ao servidor.
+
+**QA:** testes automatizados de sintaxe, parser SRT/VTT e renderização local; o reconhecimento Whisper de fala real ainda precisa ser homologado no Chrome/Edge com gravações próprias em português e verificação de consumo de memória. Nenhum teste automatizado publica em canal real.
+
+---
+
+
 A interface pública do Studio agora é \`desktop-ui.css\` + \`desktop-ui.js\` sobre o editor local existente (\`app.js\`), respeitando a referência visual de sete telas do aplicativo desktop:
 
 1. Visão geral: cabeçalho, desempenho, canais, Top 5 e público
@@ -11,7 +24,7 @@ A interface pública do Studio agora é \`desktop-ui.css\` + \`desktop-ui.js\` s
 7. Configurações: espaços/contas, canais, permissões e informação de revisão móvel
 8. **Novo:** Planos e pagamentos: 100, 250, 500 ou 1.000 créditos; R$ 0,15 por publicação confirmada; pop-up de recarga quando faltar saldo
 
-A reprodução é uma adaptação visual de **capturas de tela**; não é uma cópia 1:1 do código desktop. O app Electron e seus dados/serviços internos não estavam incluídos no repositório conectado. O módulo de IA que cria cortes automaticamente, Analytics real e pareamento Android por APK/QR ainda não foram portados ao SaaS. A versão web não pode ler disco sem autorização, nem baixar mídia de páginas YouTube usando a API oficial. A interface só exibe dados reais que vierem das APIs conectadas.
+A reprodução é uma adaptação visual de **capturas de tela**; não é uma cópia 1:1 do código desktop. O app Electron e seus dados/serviços internos não estavam incluídos no repositório conectado. A seleção editorial automática completa e as métricas oficiais de Analytics ainda dependem de integrações adicionais. A versão web não pode ler disco sem autorização, nem baixar mídia de páginas YouTube usando a API oficial. A interface só exibe dados reais que vierem das APIs conectadas.
 
 ### Produção na Railway
 O serviço \`autoclips-studio\` exibe as telas em https://autoclips-studio-production.up.railway.app/ usando apenas Nginx para HTML/CSS/JS. A mídia nunca chega à Railway. Faça homologação do OAuth, Stripe, banco de dados e publicação antes de abrir para clientes pagantes.
@@ -87,7 +100,7 @@ O fluxo de publicação é:
 4. Browser envia apenas ID YouTube para a API; backend consulta snippet/status do vídeo e confirma que foi postado PRIVADO no canal autorizado, depois captura 1 crédito.
 5. Se a chamada tem resultado incerto, o SaaS marca needs_reconciliation, sem novo upload automático. Nada é postado depois de a aba ser fechada.
 
-O painel mobile review.html mostra somente canal, status, ID e créditos. Não reproduz vídeos porque não existe armazenamento de mídia na nuvem. A revisão visual precisa acontecer no computador que possui o corte. P2P de prévia remota fica como funcionalidade futura.
+A revisão de mídia acontece exclusivamente no navegador que contém o original ou o corte. Não existe prévia móvel por nuvem nem pareamento por APK.
 
 ## Tests
 
@@ -98,6 +111,6 @@ O painel mobile review.html mostra somente canal, status, ID e créditos. Não r
 
 ## Limitações ainda não entregues
 
-- Seleção automática IA de cortes; transcrição e legenda falada sincronizada; face tracking/crop inteligente; Analytics; fila com execução pós-fechamento do navegador; prévia de vídeo em outro dispositivo sem P2P ativo.
+- Seleção automática editorial por IA; face tracking/crop inteligente; Analytics completo; fila com execução após fechar o navegador; prévia em outro dispositivo sem envio de mídia.
 - A YouTube Data API tem quotas; conectar vários canais não significa que possa ultrapassar regras e limites de publicação do YouTube.
 - O Google pode exigir verificação e auditoria para comercialização. Não declarar produto inteiro pronto para vender até testes externos, políticas e segurança estarem aprovados.

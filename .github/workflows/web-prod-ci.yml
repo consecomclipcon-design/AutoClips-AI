@@ -7,6 +7,11 @@ on:
       - 'web-local/nginx.conf.template'
       - 'web-local/entrypoint.sh'
       - 'web-local/saas-config.template.json'
+      - 'web-local/vercel.json'
+      - 'web-local/build-vercel.mjs'
+      - 'web-local/index.html'
+      - 'web-local/studio.css'
+      - 'web-local/studio-ui.js'
       - '.github/workflows/web-prod-ci.yml'
   pull_request:
     paths:
@@ -21,6 +26,19 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate same Studio assets for Vercel
+        working-directory: web-local
+        run: |
+          node build-vercel.mjs
+          test -s dist/index.html
+          test -s dist/studio.css
+          test -s dist/studio-ui.js
+          test -s dist/saas-config.json
+          node --check dist/studio-ui.js
+          node -e 'const x=require("./dist/saas-config.json");if(x.apiUrl || x.googleClientId) process.exit(1)'
       - name: Build static Docker image
         run: docker build --file web-local/Dockerfile --tag autoclips-zero-media:ci .
       - name: Run with public TEST configuration only

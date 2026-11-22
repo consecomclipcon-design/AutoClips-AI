@@ -128,6 +128,7 @@ try {
   const errors = [];
   page.on("pageerror", err => errors.push(err.message));
   await page.goto("http://127.0.0.1:8080/", { waitUntil: "domcontentloaded" });
+  await page.locator('[data-view="channels"]').first().click();
   await page.locator("#saasApi").fill("https://api.example.com");
   await page.locator("#saasSupabase").fill("https://sample.supabase.co");
   await page.locator("#saasPublishable").fill("sb_publishable_test");
@@ -136,6 +137,7 @@ try {
   await page.locator("#saasPassword").fill("test-password");
   await page.locator("#saasLogin").click();
   await page.waitForFunction(() => !!document.querySelector("#saasChannel option"));
+  await page.locator('[data-view="studio"]').first().click();
 
   await page.locator("#inputFiles").setInputFiles("/tmp/autoclips-fixture.mp4");
   await page.waitForFunction(() => {

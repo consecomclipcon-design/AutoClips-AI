@@ -196,3 +196,21 @@ fieldset{margin:0;padding:0;border:0}fieldset[disabled]{opacity:.55}
 #view-history .section-card input,#view-history .section-card select{width:100%;background:#181c28;color:#fff;border:1px solid #35394a;border-radius:12px;padding:11px}
 #view-history .section-card p{font-size:12px}
 @media(max-width:690px){.wrap.wide-mode .workspace{width:100%}.wrap.wide-mode .sidebar{display:none}}
+
+/* Align original HTML form elements with the legacy Studio visual system. */
+.rightbar input:not([type=checkbox]):not([type=file]),.rightbar textarea,.rightbar select,
+#view-library input:not([type=checkbox]):not([type=file]),#view-library select {
+ background:#181b26;color:white;border:1px solid #35394a;padding:11px 12px;border-radius:12px;
+ outline:none;width:100%;font:inherit;font-size:12px;
+}
+.rightbar input:focus,#view-library input:focus{border-color:#a96cff}
+.rightbar .controls>.btn{flex:1;padding:10px 12px}
+.rightbar .btn.primary{background:linear-gradient(120deg,#ff4b77,#b54eff);border:0;color:white}
+.rightbar .btn.soft{background:#1c202c;color:white}
+#view-library .controls>.btn{min-width:130px}
+#view-channels details[open] .field-row{margin:12px 0}
+#view-channels details summary{color:#dec7ed}
+#view-channels .section-card>.controls{display:flex;gap:9px}
+#view-channels .section-card>.controls button{flex:1}
+#view-channels input[type=checkbox],#view-library input[type=checkbox]{width:auto}
+#view-payments #saasCheckout{background:linear-gradient(120deg,#ff4b77,#b54eff);color:white;border:0;border-radius:10px;padding:11px 14px;font-weight:800}

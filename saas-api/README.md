@@ -47,7 +47,7 @@ O arquivo de origem fica no computador do cliente. O editor web-local/ produz o 
 ## Limitações antes do lançamento
 
 - Seleção automática por IA, transcrição real, legendas sincronizadas e crop inteligente ainda não estão ligados ao editor web.
-- A exportação MP4 no navegador depende da disponibilidade de MediaRecorder; WebCodecs e muxer determinístico ainda não foram homologados.
+- A exportação MP4 no navegador depende de MediaRecorder. O teste de Chromium Linux produziu MP4 com codecs VP9/Opus; o worker oferece conversão **apenas do MP4 final** para H.264/AAC quando ALLOW_SERVER_CODEC_FALLBACK=1. Essa conversão roda no servidor, tem custo adicional e vem DESLIGADA por padrão até medir custos. WebCodecs/muxer determinístico ainda não foram homologados.
 - Revisão móvel opcional de continuação de 30 segundos e Analytics do YouTube ainda não estão implementados.
 - Falta testar credenciais Google reais, Stripe em modo teste, bucket S3 real e upload privado de um vídeo autorizado.
 - Falta pilotar arquivos grandes, limites de memória, CPU, quota YouTube, retry, aprovação em múltiplos canais e custo operacional.

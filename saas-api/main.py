@@ -342,6 +342,35 @@ def jobs(org_id: UUID, user: UUID = Depends(current_user), conn=Depends(db_dep))
     return [public_job(r) for r in rows]
 
 
+@app.get("/v1/jobs/{job_id}/preview")
+def get_private_preview(job_id: UUID, org_id: UUID,
+                        user: UUID = Depends(current_user), conn=Depends(db_dep)):
+    """Short-lived link for mobile review of the final MP4 (never the long original)."""
+    require_member(conn, org_id, user)
+    row = conn.execute(
+        "select object_key,status from autoclips_saas.jobs where id=%s and org_id=%s",
+        (job_id, org_id),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Video not found")
+    if row["status"] == "awaiting_media":
+        raise HTTPException(409, "Final MP4 has not been uploaded")
+    try:
+        url = s3().generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": config("S3_BUCKET"),
+                "Key": row["object_key"],
+                "ResponseContentType": "video/mp4",
+            },
+            ExpiresIn=180,
+            HttpMethod="GET",
+        )
+        return {"preview_url": url, "expires_in_seconds": 180}
+    except Exception as exc:
+        raise HTTPException(502, "Private preview unavailable") from exc
+
+
 @app.post("/v1/jobs/{job_id}/approve")
 def approve_job(job_id: UUID, body: ApprovalInput,
                 user: UUID = Depends(current_user), conn=Depends(db_dep)):

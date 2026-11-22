@@ -58,14 +58,15 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 </div>
 <div class="notice">Limitações da prova: exportação em tempo real até 180 segundos, 540×960, sem edição automática por IA. MP4 é usado apenas quando o navegador oferece suporte; caso contrário, a saída será WebM. O processamento interrompe ao fechar a aba.</div>
 
-<p><a href="./review.html" style="color:#ff9d85">Abrir revisão pelo celular</a></p>
+<p><a href="./review.html" style="color:#ff9d85">Ver metadados e histórico pelo celular</a></p>
 <section class="panel" id="saas" style="margin-top:20px" aria-label="AutoClips SaaS">
 <h2>3. Conectar ao AutoClips SaaS (opcional)</h2>
-<p>O original longo permanece no computador. Somente o MP4 final aprovado pode ser enviado ao armazenamento privado. A publicação começa privada e exige confirmação.</p>
+<p>**Nenhum vídeo vai para o servidor AutoClips.** O original e o corte permanecem neste computador. Ao publicar, o navegador envia o corte diretamente à API do YouTube. O backend registra apenas IDs, metadados e créditos.</p>
 <div class="field-row">
 <div style="flex:1;min-width:190px"><label for="saasApi">URL da API SaaS</label><input id="saasApi" placeholder="https://api.seudominio.com"></div>
 <div style="flex:1;min-width:190px"><label for="saasSupabase">URL do Supabase Auth</label><input id="saasSupabase" placeholder="https://projeto.supabase.co"></div>
-<div style="flex:1;min-width:190px"><label for="saasPublishable">Chave pública do projeto (não secret)</label><input id="saasPublishable" autocomplete="off" placeholder="sb_publishable_..."></div>
+<div style="flex:1;min-width:190px"><label for="saasPublishable">Chave pública do Supabase</label><input id="saasPublishable" autocomplete="off" placeholder="sb_publishable_..."></div>
+<div style="flex:1;min-width:190px"><label for="saasGoogleClientId">Google OAuth Client ID (público)</label><input id="saasGoogleClientId" autocomplete="off" placeholder="...apps.googleusercontent.com"></div>
 </div>
 <div class="field-row">
 <div style="flex:1;min-width:170px"><label for="saasEmail">E-mail</label><input id="saasEmail" type="email" autocomplete="email"></div>
@@ -80,7 +81,7 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 <div class="field-row">
 <div style="flex:1"><label for="saasChannel">Canal de publicação</label><select id="saasChannel"></select></div>
 </div>
-<div class="controls"><button id="saasConnect" class="secondary">Conectar canal via Google</button></div>
+<div class="controls"><button id="saasConnect" class="secondary">Autorizar canal diretamente no Google</button></div>
 
 <div class="field-row">
 <div style="flex:1;min-width:190px"><label for="saasSourceId">ID do canal de origem (UC...)</label><input id="saasSourceId" placeholder="UCxxxxxxxxxxxxxxxxxxxxxx"></div>
@@ -99,15 +100,16 @@ fieldset{border:none;margin:0;padding:0}fieldset[disabled]{opacity:.5}.field-row
 <fieldset>
 <label for="saasTitle">Título do Short</label><input id="saasTitle" maxlength="100" placeholder="Título que descreve o corte">
 <label for="saasDescription">Descrição</label><textarea id="saasDescription" rows="2" maxlength="5000" placeholder="Descrição e atribuições aplicáveis"></textarea>
-<div class="controls"><button id="saasUpload" class="secondary">Enviar somente MP4 final</button></div>
-<label><input type="checkbox" id="saasApprovalCheck">Confirmo que quero publicar este corte em modo PRIVADO no canal escolhido e que tenho os direitos de uso.</label>
-<div class="controls"><button id="saasApprove" disabled>Aprovar publicação privada — 1 crédito</button></div>
+<div class="notice">O navegador pedirá autorização Google para publicar. Nenhum arquivo é enviado ao AutoClips. O usuário deve manter esta aba aberta durante o envio.</div>
+<label><input type="checkbox" id="saasApprovalCheck">Revisei a prévia local, tenho os direitos sobre todo o material e autorizo a publicação PRIVADA no canal escolhido.</label>
+<div class="controls"><button id="saasPrepare" class="secondary">1. Preparar publicação (reserva 1 crédito)</button><button id="saasPublish" disabled>2. Enviar diretamente ao YouTube</button></div><progress id="saasPublishProgress" value="0" max="100"></progress>
 </fieldset>
-<div class="notice" id="saasFeedback" role="status">Para usar o SaaS, configure a URL da API e os dados públicos do Supabase e entre na sua conta.</div>
+<div class="notice" id="saasFeedback" role="status">Para usar a conta SaaS, configure a URL da API, os dados públicos do Supabase e o Google Client ID. Nenhum original ou MP4 é armazenado no servidor.</div>
 <div id="saasStatus" aria-live="polite"></div>
 </section>
 </main>
 <script type="module" src="./app.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script type="module" src="./saas.js"></script>
 </body>
 </html>
